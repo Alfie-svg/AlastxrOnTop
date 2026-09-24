@@ -928,61 +928,127 @@ local _,RefreshBlackMaster=Toggle(
 )
 
 --// HITBOX
-local HitHolder,HitInner=Expand(CombatPage,"Hitbox Expander")
+local HitboxOriginalSizes=setmetatable({},{__mode="k"})
 
-Toggle(HitInner,"Enabled",function()return S.HitboxExpander end,function(v)
-	S.HitboxExpander=v
-end)
+local function GetHitParts(p)
+	local c=p and p.Character
+	if not c then return {} end
 
-Slider(HitInner,"Hitbox Size",1,20,S.HitboxSize,function(v)S.HitboxSize=v end)
+	local parts={}
 
-Toggle(CombatPage,"Higuruma QTE",function()return S.HigurumaQTE end,function(v)
-	S.HigurumaQTE=v
-end)
+	for _,n in ipairs({
+		"HumanoidRootPart",
+		"Head",
+		"UpperTorso",
+		"LowerTorso",
+		"Torso",
+		"LeftUpperArm",
+		"LeftLowerArm",
+		"LeftHand",
+		"RightUpperArm",
+		"RightLowerArm",
+		"RightHand",
+		"LeftUpperLeg",
+		"LeftLowerLeg",
+		"LeftFoot",
+		"RightUpperLeg",
+		"RightLowerLeg",
+		"RightFoot"
+	})do
+		local x=c:FindFirstChild(n)
+		if x and x:IsA("BasePart")then
+			parts[#parts+1]=x
+		end
+	end
 
-Toggle(CombatPage,"Auto Counter",function()return S.AutoCounter end,function(v)
-	S.AutoCounter=v
-end)
+	return parts
+end
 
-Toggle(CombatPage,"Auto Block",function()return S.AutoBlock end,function(v)
-	S.AutoBlock=v
-end)
+local function ApplyHitboxPart(part)
+	if not part or not part.Parent then return end
 
-local _,RefreshAntiStun=Toggle(
-	CombatPage,"Anti-Stun",
-	function()return S.AntiStun end,
-	function(v)
-		S.AntiStun=v
-		if not v then
-			local h=Hum(L.Character)
-			if h then
-				pcall(function()
-					h.PlatformStand=false
-					h.Sit=false
-				end)
+	if not HitboxOriginalSizes[part]then
+		HitboxOriginalSizes[part]={
+			Size=part.Size,
+			Transparency=part.Transparency,
+			CanCollide=part.CanCollide,
+			CanTouch=part.CanTouch,
+			Massless=part.Massless
+		}
+	end
+
+	local s=S.HitboxSize
+
+	pcall(function()
+		if part.Name=="HumanoidRootPart"then
+			part.Size=Vector3.new(s,s,s)
+		elseif part.Name=="Head"then
+			local v=math.max(1,s*.55)
+			part.Size=Vector3.new(v,v,v)
+		else
+			local old=HitboxOriginalSizes[part].Size
+			part.Size=Vector3.new(
+				math.max(old.X,s*.35),
+				math.max(old.Y,s*.35),
+				math.max(old.Z,s*.35)
+			)
+		end
+
+		part.CanTouch=true
+		part.Massless=true
+	end)
+end
+
+local function RestoreHitboxPart(part)
+	local old=HitboxOriginalSizes[part]
+	if not old then return end
+
+	pcall(function()
+		if part.Parent then
+			part.Size=old.Size
+			part.Transparency=old.Transparency
+			part.CanCollide=old.CanCollide
+			part.CanTouch=old.CanTouch
+			part.Massless=old.Massless
+		end
+	end)
+
+	HitboxOriginalSizes[part]=nil
+end
+
+R.Heartbeat:Connect(function()
+	if not S.HitboxExpander and not next(HitboxOriginalSizes)then
+		return
+	end
+
+	for _,p in ipairs(P:GetPlayers())do
+		if p~=L then
+			if S.HitboxExpander then
+				for _,part in ipairs(GetHitParts(p))do
+					ApplyHitboxPart(part)
+				end
+			else
+				for part in pairs(HitboxOriginalSizes)do
+					RestoreHitboxPart(part)
+				end
 			end
 		end
-		RefreshAntiStun()
 	end
-)
 
-local KillHolder,KillDrop,RefreshKillDropdown=Expand(CombatPage,"Kill")
-
-local _,KillListen,KillIsListening,SetKillKey,RefreshKill=
-	Keybind(KillDrop,"Kill",function()return S.KillKey end,function(k)S.KillKey=k end)
-
-local _,RefreshKillMaster=Toggle(
-	KillDrop,"Master Toggle",
-	function()return S.KillMaster end,
-	function(v)
-		S.KillMaster=v
-		if not v then
-			S.KillActive=false
-			KillTarget=nil
+	for part in pairs(HitboxOriginalSizes)do
+		if not part.Parent then
+			HitboxOriginalSizes[part]=nil
 		end
-		RefreshKill()
 	end
-)
+end)
+
+P.PlayerRemoving:Connect(function(p)
+	for part in pairs(HitboxOriginalSizes)do
+		if p.Character and part:IsDescendantOf(p.Character)then
+			RestoreHitboxPart(part)
+		end
+	end
+end)
 
 --// EXTRA / ITEMS
 local Allowed={
@@ -1139,21 +1205,29 @@ end)
 ActionButton(BringInner,"Bring All",BringAll)
 
 --// VISUAL SETTINGS
-local PlayerVisualHolder,PlayerVisualInner=Group(VisualPage,"Player ESP")
+local PlayerVisualHolder,PlayerVisualInner=Expand(VisualPage,"Player ESP")
 
-Toggle(PlayerVisualInner,"Boxes",function()return S.PlayerBoxes end,function(v)
+Toggle(PlayerVisualInner,"Boxes",function()
+	return S.PlayerBoxes
+end,function(v)
 	S.PlayerBoxes=v
 end)
 
-Toggle(PlayerVisualInner,"Names",function()return S.PlayerNames end,function(v)
+Toggle(PlayerVisualInner,"Names",function()
+	return S.PlayerNames
+end,function(v)
 	S.PlayerNames=v
 end)
 
-Toggle(PlayerVisualInner,"Health",function()return S.PlayerHealth end,function(v)
+Toggle(PlayerVisualInner,"Health",function()
+	return S.PlayerHealth
+end,function(v)
 	S.PlayerHealth=v
 end)
 
-Toggle(PlayerVisualInner,"Tracers",function()return S.PlayerTracers end,function(v)
+Toggle(PlayerVisualInner,"Tracers",function()
+	return S.PlayerTracers
+end,function(v)
 	S.PlayerTracers=v
 end)
 
@@ -1181,18 +1255,27 @@ ColorSlider(PlayerVisualInner,"Box Color",S.PlayerBoxColor,function(v)
 	S.PlayerBoxColor=v
 end)
 
-local ItemVisualHolder,ItemVisualInner=Group(VisualPage,"Item ESP")
+local ItemVisualHolder,ItemVisualInner=Expand(VisualPage,"Item ESP")
 
-Toggle(ItemVisualInner,"Boxes",function()return S.ItemBoxes end,function(v)
+Toggle(ItemVisualInner,"Boxes",function()
+	return S.ItemBoxes
+end,function(v)
 	S.ItemBoxes=v
+	RefreshItemESP()
 end)
 
-Toggle(ItemVisualInner,"Names",function()return S.ItemNames end,function(v)
+Toggle(ItemVisualInner,"Names",function()
+	return S.ItemNames
+end,function(v)
 	S.ItemNames=v
+	RefreshItemESP()
 end)
 
-Toggle(ItemVisualInner,"Tracers",function()return S.ItemTracers end,function(v)
+Toggle(ItemVisualInner,"Tracers",function()
+	return S.ItemTracers
+end,function(v)
 	S.ItemTracers=v
+	RefreshItemESP()
 end)
 
 Slider(ItemVisualInner,"Box Size",.25,2,S.ItemBoxSize,function(v)
