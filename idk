@@ -1,1 +1,4254 @@
-idk
+--// AlastxrOnTop | Private / Sandbox Test
+repeat task.wait() until game:IsLoaded()
+
+local P=game:GetService("Players")
+local U=game:GetService("UserInputService")
+local R=game:GetService("RunService")
+local T=game:GetService("TweenService")
+local W=game:GetService("Workspace")
+local VIM=game:GetService("VirtualInputManager")
+local L=P.LocalPlayer
+local C=game:GetService("CoreGui")
+
+--// CLEAN OLD VERSION
+pcall(function()
+    R:UnbindFromRenderStep("AlastxrStrongLock")
+    R:UnbindFromRenderStep("AlastxrFlight")
+    R:UnbindFromRenderStep("AlastxrFlightVelocity")
+end)
+
+pcall(function()
+    local old=C:FindFirstChild("AlastxrOnTop")
+    if old then
+        old:Destroy()
+    end
+
+    local oldESP=C:FindFirstChild("AlastxrOnTop_ESP")
+    if oldESP then
+        oldESP:Destroy()
+    end
+end)
+
+--// STATE
+local S={
+    PlayerBoxes=true,
+    PlayerNames=true,
+    PlayerHealth=true,
+    PlayerTracers=false,
+
+    ItemBoxes=true,
+    ItemNames=true,
+    ItemTracers=false,
+
+    PlayerBoxColor=Color3.new(1,1,1),
+    ItemBoxColor=Color3.new(1,1,1),
+
+    PlayerBoxThickness=2,
+    PlayerBoxSize=1,
+    PlayerNameSize=14,
+    PlayerHealthSize=13,
+    PlayerTracerThickness=2,
+
+    ItemBoxSize=1,
+    ItemBoxThickness=2,
+    ItemNameSize=14,
+    ItemTracerThickness=2,
+
+    Fly=false,
+    FlyMaster=true,
+    FlyKey=Enum.KeyCode.X,
+    FlySpeed=60,
+
+    AntiStun=false,
+    HigurumaQTE=false,
+    AutoCounter=false,
+    AutoBlock=false,
+
+    LockOnEnabled=false,
+    LockOnMaster=true,
+    LockOnKey=Enum.KeyCode.C,
+    LockOnMode="Camera",
+
+    KillActive=false,
+    KillMaster=true,
+    KillKey=Enum.KeyCode.V,
+
+    AutoBlackFlash=false,
+    AutoBlackFlashKey=Enum.KeyCode.Three,
+
+    HitboxExpander=false,
+    HitboxSize=5,
+
+    Theme="Midnight",
+    MenuVisible=true,
+    MenuCondensed=false,
+
+    BringItem="Gun"
+}
+
+--// THEMES
+local Themes={
+    Default={
+        Main=Color3.fromRGB(30,30,30),
+        Top=Color3.fromRGB(22,22,22),
+        Side=Color3.fromRGB(25,25,25),
+        Content=Color3.fromRGB(34,34,34),
+        Panel=Color3.fromRGB(40,40,40),
+        Button=Color3.fromRGB(48,48,48),
+        Hover=Color3.fromRGB(60,60,60),
+        Accent=Color3.fromRGB(145,145,145),
+        Text=Color3.fromRGB(240,240,240),
+        Stroke=Color3.fromRGB(75,75,75),
+        On=Color3.fromRGB(45,145,75)
+    },
+
+    Midnight={
+        Main=Color3.fromRGB(30,10,14),
+        Top=Color3.fromRGB(48,10,16),
+        Side=Color3.fromRGB(38,10,15),
+        Content=Color3.fromRGB(44,13,19),
+        Panel=Color3.fromRGB(58,16,23),
+        Button=Color3.fromRGB(69,19,27),
+        Hover=Color3.fromRGB(90,25,34),
+        Accent=Color3.fromRGB(175,40,52),
+        Text=Color3.fromRGB(245,235,235),
+        Stroke=Color3.fromRGB(105,30,40),
+        On=Color3.fromRGB(55,145,75)
+    }
+}
+
+local A=TweenInfo.new(
+    .22,
+    Enum.EasingStyle.Quart,
+    Enum.EasingDirection.Out
+)
+
+local CW=.96
+
+--// SHARED REFERENCES
+local X={
+    LastTarget=nil,
+    LockTarget=nil,
+    KillTarget=nil,
+
+    AutoBlackFlashTarget=nil,
+    AutoBlackFlashRunning=false,
+    AutoBlackFlashFollow=nil,
+
+    G=nil,
+    M=nil,
+    Body=nil,
+    Content=nil,
+
+    ShowPage=nil,
+
+    RefreshLock=nil,
+    RefreshLockMaster=nil,
+    RefreshLockKey=nil,
+
+    RefreshFlight=nil,
+    RefreshFlightMaster=nil,
+    RefreshFlightKey=nil,
+
+    RefreshBlack=nil,
+    RefreshBlackMaster=nil,
+    RefreshBlackKey=nil,
+
+    RefreshKill=nil,
+    RefreshKillMaster=nil,
+    RefreshKillKey=nil,
+
+    RefreshTheme=nil,
+    RefreshThemeSize=nil,
+
+    RefreshItemESP=nil,
+    StopAutoBlackFlash=nil,
+
+    Closest=nil
+}
+
+--// CHARACTER HELPERS
+function X.Root(c)
+    if not c then
+        return
+    end
+
+    return c:FindFirstChild("HumanoidRootPart")
+        or c:FindFirstChild("UpperTorso")
+        or c:FindFirstChild("Torso")
+end
+
+function X.Hum(c)
+    if not c then
+        return
+    end
+
+    return c:FindFirstChildOfClass("Humanoid")
+end
+
+function X.Valid(p)
+    if not p
+        or p==L
+        or p.Parent~=P
+    then
+        return false
+    end
+
+    local c=p.Character
+    local h=X.Hum(c)
+    local r=X.Root(c)
+
+    return c
+        and h
+        and r
+        and h.Health>0
+end
+
+function X.FindPlayer(part)
+    if not part then
+        return
+    end
+
+    for _,p in ipairs(P:GetPlayers()) do
+        if p~=L
+            and p.Character
+            and part:IsDescendantOf(p.Character)
+        then
+            return p
+        end
+    end
+end
+
+--// UI HELPERS
+local TO=function(o)
+    o.BackgroundColor3=X.CT().Top
+end
+
+local CT=function()
+    return Themes[S.Theme] or Themes.Midnight
+end
+
+X.CT=function()
+    return Themes[S.Theme] or Themes.Midnight
+end
+
+function X.tw(o,props)
+    if o then
+        T:Create(o,A,props):Play()
+    end
+end
+
+function X.Reg(o,key)
+    o:SetAttribute("AlastxrTheme",key)
+end
+
+function X.Theme()
+    local t=X.CT()
+
+    if X.M then
+        X.M.BackgroundColor3=t.Main
+    end
+
+    if X.Body then
+        X.Body.BackgroundColor3=t.Content
+    end
+
+    if X.Content then
+        X.Content.BackgroundColor3=t.Content
+    end
+
+    if X.G then
+        for _,o in ipairs(X.G:GetDescendants()) do
+            if o:IsA("UIStroke") then
+                o.Color=t.Stroke
+            end
+
+            local key=o:GetAttribute("AlastxrTheme")
+
+            if key=="Top" and o:IsA("GuiObject") then
+                o.BackgroundColor3=t.Top
+            elseif key=="Side" and o:IsA("GuiObject") then
+                o.BackgroundColor3=t.Side
+            elseif key=="Content" and o:IsA("GuiObject") then
+                o.BackgroundColor3=t.Content
+            elseif key=="Panel" and o:IsA("GuiObject") then
+                o.BackgroundColor3=t.Panel
+            elseif key=="Button" and o:IsA("GuiObject") then
+                o.BackgroundColor3=t.Button
+            elseif key=="Hover" and o:IsA("GuiObject") then
+                o.BackgroundColor3=t.Hover
+            end
+
+            if o:IsA("TextLabel")
+                or o:IsA("TextButton")
+                or o:IsA("TextBox")
+            then
+                if not o:GetAttribute("AlastxrKeepTextColor") then
+                    o.TextColor3=t.Text
+                end
+            end
+        end
+    end
+end
+
+function X.SideButton(parent,text)
+    local b=Instance.new("TextButton")
+    b.Parent=parent
+    b.Size=UDim2.new(1,0,0,38)
+    b.BackgroundTransparency=1
+    b.BorderSizePixel=0
+    b.AutoButtonColor=false
+    b.Font=Enum.Font.Gotham
+    b.TextSize=13
+    b.TextXAlignment=Enum.TextXAlignment.Left
+    b.Text="  "..text
+
+    return b
+end
+
+function X.Page(parent)
+    local p=Instance.new("ScrollingFrame")
+    p.Parent=parent
+    p.Size=UDim2.fromScale(1,1)
+    p.BackgroundTransparency=1
+    p.BorderSizePixel=0
+    p.ScrollBarThickness=0
+    p.ScrollBarImageTransparency=1
+    p.AutomaticCanvasSize=Enum.AutomaticSize.Y
+    p.CanvasSize=UDim2.new()
+    p.Visible=false
+
+    local pad=Instance.new("UIPadding",p)
+    pad.PaddingTop=UDim.new(0,14)
+    pad.PaddingBottom=UDim.new(0,14)
+    pad.PaddingLeft=UDim.new(0,20)
+    pad.PaddingRight=UDim.new(0,20)
+
+    local list=Instance.new("UIListLayout",p)
+    list.Padding=UDim.new(0,8)
+    list.SortOrder=Enum.SortOrder.LayoutOrder
+
+    return p
+end
+
+function X.Expand(parent,title)
+    local holder=Instance.new("Frame",parent)
+    holder.Size=UDim2.new(CW,0,0,36)
+    holder.BackgroundColor3=X.CT().Button
+    holder.BorderSizePixel=0
+    holder.ClipsDescendants=true
+
+    local corner=Instance.new("UICorner",holder)
+    corner.CornerRadius=UDim.new(0,8)
+
+    X.Reg(holder,"Button")
+
+    local b=Instance.new("TextButton",holder)
+    b.Size=UDim2.new(1,0,0,36)
+    b.BackgroundTransparency=1
+    b.BorderSizePixel=0
+    b.AutoButtonColor=false
+    b.Font=Enum.Font.Gotham
+    b.TextSize=13
+    b.TextXAlignment=Enum.TextXAlignment.Left
+    b.Text="  "..title.."  +"
+
+    local arrow=Instance.new("TextLabel",b)
+    arrow.BackgroundTransparency=1
+    arrow.AnchorPoint=Vector2.new(1,.5)
+    arrow.Position=UDim2.new(1,-12,.5,0)
+    arrow.Size=UDim2.fromOffset(18,18)
+    arrow.Font=Enum.Font.GothamBold
+    arrow.Text="›"
+    arrow.TextSize=18
+    arrow.TextColor3=X.CT().Text
+
+    local inner=Instance.new("Frame",holder)
+    inner.Position=UDim2.fromOffset(5,40)
+    inner.Size=UDim2.new(1,-10,0,0)
+    inner.AutomaticSize=Enum.AutomaticSize.Y
+    inner.BackgroundTransparency=1
+
+    local list=Instance.new("UIListLayout",inner)
+    list.Padding=UDim.new(0,5)
+    list.SortOrder=Enum.SortOrder.LayoutOrder
+
+    local pad=Instance.new("UIPadding",inner)
+    pad.PaddingBottom=UDim.new(0,8)
+
+    local open=false
+
+    local function resize()
+        task.defer(function()
+            local h=36
+
+            if open then
+                h=43+inner.AbsoluteSize.Y
+            end
+
+            X.tw(holder,{
+                Size=UDim2.new(
+                    CW,
+                    0,
+                    0,
+                    h
+                )
+            })
+
+            b.Text="  "..title.."  "..(open and "-" or "+")
+            X.tw(arrow,{
+                Rotation=open and 90 or 0
+            })
+        end)
+    end
+
+    b.MouseButton1Click:Connect(function()
+        open=not open
+        resize()
+    end)
+
+    holder:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+        if open then
+            resize()
+        end
+    end)
+
+    return holder,inner
+end
+
+function X.Toggle(parent,title,get,set)
+    local b=Instance.new("TextButton",parent)
+    b.Size=UDim2.new(1,0,0,34)
+    b.BackgroundColor3=X.CT().Button
+    b.BorderSizePixel=0
+    b.AutoButtonColor=false
+    b.Font=Enum.Font.Gotham
+    b.TextSize=12
+    b.TextXAlignment=Enum.TextXAlignment.Left
+
+    local c=Instance.new("UICorner",b)
+    c.CornerRadius=UDim.new(0,7)
+
+    X.Reg(b,"Button")
+
+    local dot=Instance.new("Frame",b)
+    dot.AnchorPoint=Vector2.new(1,.5)
+    dot.Position=UDim2.new(1,-10,.5,0)
+    dot.Size=UDim2.fromOffset(38,18)
+    dot.BorderSizePixel=0
+
+    local dc=Instance.new("UICorner",dot)
+    dc.CornerRadius=UDim.new(1,0)
+
+    local knob=Instance.new("Frame",dot)
+    knob.Size=UDim2.fromOffset(14,14)
+    knob.AnchorPoint=Vector2.new(.5,.5)
+    knob.Position=UDim2.new(0,10,.5,0)
+    knob.BorderSizePixel=0
+    knob.BackgroundColor3=Color3.new(1,1,1)
+
+    local kc=Instance.new("UICorner",knob)
+    kc.CornerRadius=UDim.new(1,0)
+
+    local function refresh()
+        local v=get()
+
+        b.Text="  "..title
+
+        if v then
+            dot.BackgroundColor3=X.CT().On
+            knob.Position=UDim2.new(1,-10,.5,0)
+        else
+            dot.BackgroundColor3=X.CT().Stroke
+            knob.Position=UDim2.new(0,10,.5,0)
+        end
+    end
+
+    b.MouseButton1Click:Connect(function()
+        set(not get())
+        refresh()
+    end)
+
+    refresh()
+
+    return b,refresh
+end
+
+function X.Keybind(parent,title,get,set)
+    local holder=Instance.new("Frame",parent)
+    holder.Size=UDim2.new(1,0,0,34)
+    holder.BackgroundColor3=X.CT().Button
+    holder.BorderSizePixel=0
+
+    local c=Instance.new("UICorner",holder)
+    c.CornerRadius=UDim.new(0,7)
+
+    X.Reg(holder,"Button")
+
+    local label=Instance.new("TextLabel",holder)
+    label.BackgroundTransparency=1
+    label.Position=UDim2.fromOffset(10,0)
+    label.Size=UDim2.new(1,-100,1,0)
+    label.Font=Enum.Font.Gotham
+    label.TextSize=12
+    label.TextXAlignment=Enum.TextXAlignment.Left
+    label.Text=title
+
+    local button=Instance.new("TextButton",holder)
+    button.AnchorPoint=Vector2.new(1,.5)
+    button.Position=UDim2.new(1,-7,.5,0)
+    button.Size=UDim2.fromOffset(78,26)
+    button.BackgroundColor3=X.CT().Panel
+    button.BorderSizePixel=0
+    button.AutoButtonColor=false
+    button.Font=Enum.Font.Gotham
+    button.TextSize=11
+
+    local bc=Instance.new("UICorner",button)
+    bc.CornerRadius=UDim.new(0,7)
+
+    X.Reg(button,"Panel")
+
+    local listening=false
+
+    local function refresh()
+        button.Text=listening and "PRESS KEY" or get().Name
+    end
+
+    button.MouseButton1Click:Connect(function()
+        listening=true
+        refresh()
+    end)
+
+    refresh()
+
+    return holder,function()
+        return listening
+    end,function(key)
+        listening=false
+        set(key)
+        refresh()
+    end,refresh
+end
+
+function X.Slider(parent,title,min,max,value,set)
+    local holder=Instance.new("Frame",parent)
+    holder.Size=UDim2.new(1,0,0,48)
+    holder.BackgroundColor3=X.CT().Button
+    holder.BorderSizePixel=0
+
+    local c=Instance.new("UICorner",holder)
+    c.CornerRadius=UDim.new(0,7)
+
+    X.Reg(holder,"Button")
+
+    local label=Instance.new("TextLabel",holder)
+    label.BackgroundTransparency=1
+    label.Position=UDim2.fromOffset(10,3)
+    label.Size=UDim2.new(1,-70,0,18)
+    label.Font=Enum.Font.Gotham
+    label.TextSize=11
+    label.TextXAlignment=Enum.TextXAlignment.Left
+    label.Text=title
+
+    local val=Instance.new("TextLabel",holder)
+    val.BackgroundTransparency=1
+    val.AnchorPoint=Vector2.new(1,0)
+    val.Position=UDim2.new(1,-10,0,3)
+    val.Size=UDim2.fromOffset(45,18)
+    val.Font=Enum.Font.Gotham
+    val.TextSize=11
+    val.TextXAlignment=Enum.TextXAlignment.Right
+
+    local bar=Instance.new("Frame",holder)
+    bar.Position=UDim2.fromOffset(10,28)
+    bar.Size=UDim2.new(1,-20,0,8)
+    bar.BackgroundColor3=X.CT().Stroke
+    bar.BorderSizePixel=0
+
+    local bc=Instance.new("UICorner",bar)
+    bc.CornerRadius=UDim.new(1,0)
+
+    local fill=Instance.new("Frame",bar)
+    fill.Size=UDim2.fromScale(0,1)
+    fill.BorderSizePixel=0
+    fill.BackgroundColor3=X.CT().Accent
+
+    local fc=Instance.new("UICorner",fill)
+    fc.CornerRadius=UDim.new(1,0)
+
+    local knob=Instance.new("Frame",bar)
+    knob.AnchorPoint=Vector2.new(.5,.5)
+    knob.Size=UDim2.fromOffset(14,14)
+    knob.BorderSizePixel=0
+    knob.BackgroundColor3=Color3.new(1,1,1)
+
+    local kc=Instance.new("UICorner",knob)
+    kc.CornerRadius=UDim.new(1,0)
+
+    local dragging=false
+
+    local function refresh(v)
+        v=math.clamp(math.round(v),min,max)
+        local alpha=(v-min)/(max-min)
+
+        val.Text=tostring(v)
+        fill.Size=UDim2.fromScale(alpha,1)
+        knob.Position=UDim2.new(alpha,0,.5,0)
+    end
+
+    local function setFromX(x)
+        local alpha=math.clamp(
+            (x-bar.AbsolutePosition.X)/bar.AbsoluteSize.X,
+            0,
+            1
+        )
+
+        local v=math.round(min+(max-min)*alpha)
+        set(v)
+        refresh(v)
+    end
+
+    bar.InputBegan:Connect(function(input)
+        if input.UserInputType==Enum.UserInputType.MouseButton1 then
+            dragging=true
+            setFromX(input.Position.X)
+        end
+    end)
+
+    U.InputChanged:Connect(function(input)
+        if dragging
+            and input.UserInputType==Enum.UserInputType.MouseMovement
+        then
+            setFromX(input.Position.X)
+        end
+    end)
+
+    U.InputEnded:Connect(function(input)
+        if input.UserInputType==Enum.UserInputType.MouseButton1 then
+            dragging=false
+        end
+    end)
+
+    refresh(value)
+
+    return holder,refresh
+end
+
+function X.ColorSlider(parent,title,value,set)
+    local holder=Instance.new("Frame",parent)
+    holder.Size=UDim2.new(1,0,0,48)
+    holder.BackgroundColor3=X.CT().Button
+    holder.BorderSizePixel=0
+
+    local c=Instance.new("UICorner",holder)
+    c.CornerRadius=UDim.new(0,7)
+
+    X.Reg(holder,"Button")
+
+    local label=Instance.new("TextLabel",holder)
+    label.BackgroundTransparency=1
+    label.Position=UDim2.fromOffset(10,3)
+    label.Size=UDim2.new(1,-70,0,18)
+    label.Font=Enum.Font.Gotham
+    label.TextSize=11
+    label.TextXAlignment=Enum.TextXAlignment.Left
+    label.Text=title
+
+    local preview=Instance.new("Frame",holder)
+    preview.AnchorPoint=Vector2.new(1,.5)
+    preview.Position=UDim2.new(1,-12,.5,0)
+    preview.Size=UDim2.fromOffset(28,20)
+    preview.BorderSizePixel=0
+    preview.BackgroundColor3=value
+
+    local pc=Instance.new("UICorner",preview)
+    pc.CornerRadius=UDim.new(0,5)
+
+    local bar=Instance.new("Frame",holder)
+    bar.Position=UDim2.fromOffset(10,28)
+    bar.Size=UDim2.new(1,-55,0,8)
+    bar.BackgroundColor3=X.CT().Stroke
+    bar.BorderSizePixel=0
+
+    local bc=Instance.new("UICorner",bar)
+    bc.CornerRadius=UDim.new(1,0)
+
+    local dragging=false
+
+    local function update(x)
+        local a=math.clamp(
+            (x-bar.AbsolutePosition.X)/bar.AbsoluteSize.X,
+            0,
+            1
+        )
+
+        local col=Color3.fromHSV(a,1,1)
+        set(col)
+        preview.BackgroundColor3=col
+    end
+
+    bar.InputBegan:Connect(function(input)
+        if input.UserInputType==Enum.UserInputType.MouseButton1 then
+            dragging=true
+            update(input.Position.X)
+        end
+    end)
+
+    U.InputChanged:Connect(function(input)
+        if dragging
+            and input.UserInputType==Enum.UserInputType.MouseMovement
+        then
+            update(input.Position.X)
+        end
+    end)
+
+    U.InputEnded:Connect(function(input)
+        if input.UserInputType==Enum.UserInputType.MouseButton1 then
+            dragging=false
+        end
+    end)
+
+    return holder
+end
+
+function X.Dropdown(parent,title,options,current,set)
+    local holder=Instance.new("Frame",parent)
+    holder.Size=UDim2.new(1,0,0,36)
+    holder.BackgroundColor3=X.CT().Button
+    holder.BorderSizePixel=0
+    holder.ClipsDescendants=true
+
+    local c=Instance.new("UICorner",holder)
+    c.CornerRadius=UDim.new(0,7)
+
+    X.Reg(holder,"Button")
+
+    local b=Instance.new("TextButton",holder)
+    b.Size=UDim2.new(1,0,0,36)
+    b.BackgroundTransparency=1
+    b.BorderSizePixel=0
+    b.AutoButtonColor=false
+    b.Font=Enum.Font.Gotham
+    b.TextSize=12
+    b.TextXAlignment=Enum.TextXAlignment.Left
+
+    local list=Instance.new("Frame",holder)
+    list.Position=UDim2.fromOffset(5,39)
+    list.Size=UDim2.new(1,-10,0,0)
+    list.AutomaticSize=Enum.AutomaticSize.Y
+    list.BackgroundTransparency=1
+
+    local ll=Instance.new("UIListLayout",list)
+    ll.Padding=UDim.new(0,4)
+
+    local open=false
+
+    local function refresh()
+        b.Text="  "..title.." ("..tostring(current)..")  "..(open and "-" or "+")
+    end
+
+    for _,option in ipairs(options) do
+        local x=Instance.new("TextButton",list)
+        x.Size=UDim2.new(1,0,0,30)
+        x.BackgroundColor3=X.CT().Panel
+        x.BorderSizePixel=0
+        x.AutoButtonColor=false
+        x.Font=Enum.Font.Gotham
+        x.TextSize=11
+        x.TextXAlignment=Enum.TextXAlignment.Left
+        x.Text="  "..tostring(option)
+
+        local xc=Instance.new("UICorner",x)
+        xc.CornerRadius=UDim.new(0,6)
+
+        X.Reg(x,"Panel")
+
+        x.MouseButton1Click:Connect(function()
+            current=option
+            set(option)
+            open=false
+
+            X.tw(holder,{
+                Size=UDim2.new(1,0,0,36)
+            })
+
+            refresh()
+        end)
+    end
+
+    b.MouseButton1Click:Connect(function()
+        open=not open
+
+        X.tw(holder,{
+            Size=UDim2.new(
+                1,
+                0,
+                0,
+                open and (43+list.AbsoluteSize.Y) or 36
+            )
+        })
+
+        refresh()
+    end)
+
+    refresh()
+
+    return holder
+end
+
+--// MAIN UI
+do
+    local gui=Instance.new("ScreenGui")
+    gui.Name="AlastxrOnTop"
+    gui.ResetOnSpawn=false
+    gui.ZIndexBehavior=Enum.ZIndexBehavior.Sibling
+
+    local parent=C
+
+    pcall(function()
+        if not parent:FindFirstChild("RobloxGui") then
+            parent=L:WaitForChild("PlayerGui")
+        end
+    end)
+
+    gui.Parent=parent
+    X.G=gui
+
+    local M=Instance.new("Frame",gui)
+    M.Name="Main"
+    M.Size=UDim2.fromOffset(860,560)
+    M.AnchorPoint=Vector2.new(.5,.5)
+    M.Position=UDim2.fromScale(.5,.5)
+    M.BackgroundColor3=X.CT().Main
+    M.BorderSizePixel=0
+    M.ClipsDescendants=true
+
+    local mc=Instance.new("UICorner",M)
+    mc.CornerRadius=UDim.new(0,12)
+
+    local ms=Instance.new("UIStroke",M)
+    ms.Color=X.CT().Stroke
+    ms.Thickness=1
+
+    X.M=M
+
+    --// TOP BAR
+    local top=Instance.new("Frame",M)
+    top.Size=UDim2.new(1,0,0,52)
+    top.BackgroundColor3=X.CT().Top
+    top.BorderSizePixel=0
+    X.Reg(top,"Top")
+
+    local title=Instance.new("TextLabel",top)
+    title.BackgroundTransparency=1
+    title.Position=UDim2.fromOffset(18,5)
+    title.Size=UDim2.fromOffset(300,25)
+    title.Font=Enum.Font.GothamBold
+    title.TextSize=17
+    title.TextXAlignment=Enum.TextXAlignment.Left
+    title.Text="AlastxrOnTop"
+
+    local sub=Instance.new("TextLabel",top)
+    sub.BackgroundTransparency=1
+    sub.Position=UDim2.fromOffset(19,28)
+    sub.Size=UDim2.fromOffset(300,18)
+    sub.Font=Enum.Font.Gotham
+    sub.TextSize=9
+    sub.TextXAlignment=Enum.TextXAlignment.Left
+    sub.Text="PRIVATE / SANDBOX"
+
+    local min=Instance.new("TextButton",top)
+    min.AnchorPoint=Vector2.new(1,.5)
+    min.Position=UDim2.new(1,-45,.5,0)
+    min.Size=UDim2.fromOffset(32,28)
+    min.BackgroundColor3=X.CT().Button
+    min.BorderSizePixel=0
+    min.AutoButtonColor=false
+    min.Font=Enum.Font.GothamBold
+    min.TextSize=16
+    min.Text="—"
+
+    local minc=Instance.new("UICorner",min)
+    minc.CornerRadius=UDim.new(0,7)
+
+    X.Reg(min,"Button")
+
+    local close=Instance.new("TextButton",top)
+    close.AnchorPoint=Vector2.new(1,.5)
+    close.Position=UDim2.new(1,-8,.5,0)
+    close.Size=UDim2.fromOffset(32,28)
+    close.BackgroundColor3=X.CT().Button
+    close.BorderSizePixel=0
+    close.AutoButtonColor=false
+    close.Font=Enum.Font.GothamBold
+    close.TextSize=15
+    close.Text="×"
+
+    local cc=Instance.new("UICorner",close)
+    cc.CornerRadius=UDim.new(0,7)
+
+    X.Reg(close,"Button")
+
+    --// BODY
+    local Body=Instance.new("Frame",M)
+    Body.Position=UDim2.fromOffset(0,52)
+    Body.Size=UDim2.new(1,0,1,-52)
+    Body.BackgroundColor3=X.CT().Content
+    Body.BorderSizePixel=0
+    X.Reg(Body,"Content")
+    X.Body=Body
+
+    --// SIDE
+    local side=Instance.new("Frame",Body)
+    side.Size=UDim2.new(0,215,1,0)
+    side.BackgroundColor3=X.CT().Side
+    side.BorderSizePixel=0
+    X.Reg(side,"Side")
+
+    --// NO SIDEBAR SCROLLBAR
+    local nav=Instance.new("Frame",side)
+    nav.Position=UDim2.fromOffset(8,14)
+    nav.Size=UDim2.new(1,-16,1,-28)
+    nav.BackgroundTransparency=1
+
+    local navList=Instance.new("UIListLayout",nav)
+    navList.Padding=UDim.new(0,3)
+    navList.SortOrder=Enum.SortOrder.LayoutOrder
+
+    local Content=Instance.new("Frame",Body)
+    Content.Position=UDim2.fromOffset(215,0)
+    Content.Size=UDim2.new(1,-215,1,0)
+    Content.BackgroundColor3=X.CT().Content
+    Content.BorderSizePixel=0
+    X.Reg(Content,"Content")
+    X.Content=Content
+
+    --// CONTENT HEADER
+    local header=Instance.new("Frame",Content)
+    header.Size=UDim2.new(1,0,0,78)
+    header.BackgroundTransparency=1
+
+    local pageTitle=Instance.new("TextLabel",header)
+    pageTitle.Position=UDim2.fromOffset(20,12)
+    pageTitle.Size=UDim2.new(1,-40,0,27)
+    pageTitle.BackgroundTransparency=1
+    pageTitle.Font=Enum.Font.GothamBold
+    pageTitle.TextSize=19
+    pageTitle.TextXAlignment=Enum.TextXAlignment.Left
+
+    local pageDesc=Instance.new("TextLabel",header)
+    pageDesc.Position=UDim2.fromOffset(20,40)
+    pageDesc.Size=UDim2.new(1,-40,0,20)
+    pageDesc.BackgroundTransparency=1
+    pageDesc.Font=Enum.Font.Gotham
+    pageDesc.TextSize=10
+    pageDesc.TextColor3=Color3.fromRGB(165,165,165)
+    pageDesc.TextXAlignment=Enum.TextXAlignment.Left
+
+    local line=Instance.new("Frame",header)
+    line.Position=UDim2.fromOffset(20,69)
+    line.Size=UDim2.new(1,-40,0,1)
+    line.BackgroundColor3=X.CT().Stroke
+    line.BorderSizePixel=0
+
+    --// DETAIL AREA
+    local DetailArea=Instance.new("Frame",Content)
+    DetailArea.Position=UDim2.fromOffset(0,78)
+    DetailArea.Size=UDim2.new(1,0,-78,0)
+    DetailArea.BackgroundTransparency=1
+
+    local combatPage=X.Page(DetailArea)
+    local visualPage=X.Page(DetailArea)
+    local extraPage=X.Page(DetailArea)
+    local settingsPage=X.Page(DetailArea)
+
+    local pages={
+        Combat=combatPage,
+        Visuals=visualPage,
+        Extra=extraPage,
+        Settings=settingsPage
+    }
+
+    local function MakePage(name,description)
+        return pages[name],description
+    end
+
+    local Details={
+        Combat={"Combat","Combat assistance and movement controls."},
+        Visuals={"Visuals","Player and item visual overlays."},
+        Extra={"Extra","Utility and item controls."},
+        Settings={"Settings","Theme and interface settings."}
+    }
+
+    local selected=nil
+
+    local function SelectDetail(holder)
+        for _,p in pairs(pages) do
+            p.Visible=false
+        end
+
+        holder.Visible=true
+    end
+
+    function X.ShowPage(name)
+        local p=pages[name]
+        if not p then
+            return
+        end
+
+        SelectDetail(p)
+
+        local d=Details[name]
+        pageTitle.Text=d[1]
+        pageDesc.Text=d[2]
+        selected=name
+    end
+
+    --// COMBAT UI
+    do
+        local lockHolder,lockInner=
+            X.Expand(
+                combatPage,
+                "Lock On"
+            )
+
+        local lockKey,lockListening,setLockKey,refreshLockKey=
+            X.Keybind(
+                lockInner,
+                "Keybind",
+                function()
+                    return S.LockOnKey
+                end,
+                function(v)
+                    S.LockOnKey=v
+                end
+            )
+
+        X.LockIsListening=lockListening
+        X.SetLockKey=setLockKey
+        X.RefreshLockKey=refreshLockKey
+
+        local _,refreshLockMaster=
+            X.Toggle(
+                lockInner,
+                "Enabled",
+                function()
+                    return S.LockOnMaster
+                end,
+                function(v)
+                    S.LockOnMaster=v
+
+                    if not v then
+                        S.LockOnEnabled=false
+                        X.LockTarget=nil
+                    end
+                end
+            )
+
+        X.RefreshLockMaster=refreshLockMaster
+
+        X.Dropdown(
+            lockInner,
+            "Mode",
+            {"Camera","Character"},
+            S.LockOnMode,
+            function(v)
+                S.LockOnMode=v
+            end
+        )
+
+        X.RefreshLock=function()
+            lockHolder.Visible=true
+        end
+
+        X.LockHolder=lockHolder
+
+        local flightHolder,flightInner=
+            X.Expand(
+                combatPage,
+                "Flight"
+            )
+
+        local _,flightListening,setFlightKey,refreshFlightKey=
+            X.Keybind(
+                flightInner,
+                "Keybind",
+                function()
+                    return S.FlyKey
+                end,
+                function(v)
+                    S.FlyKey=v
+                end
+            )
+
+        X.FlightIsListening=flightListening
+        X.SetFlightKey=setFlightKey
+        X.RefreshFlightKey=refreshFlightKey
+
+        local _,refreshFlightMaster=
+            X.Toggle(
+                flightInner,
+                "Enabled",
+                function()
+                    return S.FlyMaster
+                end,
+                function(v)
+                    S.FlyMaster=v
+
+                    if not v then
+                        S.Fly=false
+                    end
+                end
+            )
+
+        X.RefreshFlightMaster=refreshFlightMaster
+        X.RefreshFlight=refreshFlightMaster
+
+        X.Slider(
+            flightInner,
+            "Speed",
+            10,
+            150,
+            S.FlySpeed,
+            function(v)
+                S.FlySpeed=v
+            end
+        )
+
+        X.FlightHolder=flightHolder
+
+        local blackHolder,blackInner=
+            X.Expand(
+                combatPage,
+                "Auto Black Flash"
+            )
+
+        local _,blackListening,setBlackKey,refreshBlackKey=
+            X.Keybind(
+                blackInner,
+                "Keybind",
+                function()
+                    return S.AutoBlackFlashKey
+                end,
+                function(v)
+                    S.AutoBlackFlashKey=v
+                end
+            )
+
+        X.BlackIsListening=blackListening
+        X.SetBlackKey=setBlackKey
+        X.RefreshBlackKey=refreshBlackKey
+
+        local _,refreshBlackMaster=
+            X.Toggle(
+                blackInner,
+                "Enabled",
+                function()
+                    return S.AutoBlackFlash
+                end,
+                function(v)
+                    S.AutoBlackFlash=v
+
+                    if not v
+                        and X.StopAutoBlackFlash
+                    then
+                        X.StopAutoBlackFlash()
+                    end
+                end
+            )
+
+        X.RefreshBlackMaster=refreshBlackMaster
+        X.RefreshBlack=refreshBlackMaster
+        X.BlackHolder=blackHolder
+
+        local hitHolder,hitInner=
+            X.Expand(
+                combatPage,
+                "Hitbox Expander"
+            )
+
+        X.Toggle(
+            hitInner,
+            "Enabled",
+            function()
+                return S.HitboxExpander
+            end,
+            function(v)
+                S.HitboxExpander=v
+            end
+        )
+
+        X.Slider(
+            hitInner,
+            "Size",
+            1,
+            12,
+            S.HitboxSize,
+            function(v)
+                S.HitboxSize=v
+            end
+        )
+
+        X.HitboxHolder=hitHolder
+
+        local qteHolder,qteInner=
+            X.Expand(
+                combatPage,
+                "Defense Attorney QTE"
+            )
+
+        X.Toggle(
+            qteInner,
+            "Enabled",
+            function()
+                return S.HigurumaQTE
+            end,
+            function(v)
+                S.HigurumaQTE=v
+            end
+        )
+
+        X.QTEHolder=qteHolder
+
+        local counterHolder,counterInner=
+            X.Expand(
+                combatPage,
+                "Auto Counter"
+            )
+
+        X.Toggle(
+            counterInner,
+            "Enabled",
+            function()
+                return S.AutoCounter
+            end,
+            function(v)
+                S.AutoCounter=v
+            end
+        )
+
+        X.CounterHolder=counterHolder
+
+        local blockHolder,blockInner=
+            X.Expand(
+                combatPage,
+                "Auto Block"
+            )
+
+        X.Toggle(
+            blockInner,
+            "Enabled",
+            function()
+                return S.AutoBlock
+            end,
+            function(v)
+                S.AutoBlock=v
+            end
+        )
+
+        X.BlockHolder=blockHolder
+
+        local anti=Instance.new("Frame",combatPage)
+        anti.Size=UDim2.new(CW,0,0,34)
+        anti.BackgroundColor3=X.CT().Button
+        anti.BorderSizePixel=0
+
+        local ac=Instance.new("UICorner",anti)
+        ac.CornerRadius=UDim.new(0,7)
+
+        X.Reg(anti,"Button")
+
+        X.Toggle(
+            anti,
+            "Anti-Stun",
+            function()
+                return S.AntiStun
+            end,
+            function(v)
+                S.AntiStun=v
+            end
+        )
+
+        X.AntiStunHolder=anti
+
+        local killHolder,killInner=
+            X.Expand(
+                combatPage,
+                "Kill"
+            )
+
+        local _,killListening,setKillKey,refreshKillKey=
+            X.Keybind(
+                killInner,
+                "Keybind",
+                function()
+                    return S.KillKey
+                end,
+                function(v)
+                    S.KillKey=v
+                end
+            )
+
+        X.KillIsListening=killListening
+        X.SetKillKey=setKillKey
+        X.RefreshKillKey=refreshKillKey
+
+        local _,refreshKillMaster=
+            X.Toggle(
+                killInner,
+                "Enabled",
+                function()
+                    return S.KillMaster
+                end,
+                function(v)
+                    S.KillMaster=v
+
+                    if not v then
+                        S.KillActive=false
+                        X.KillTarget=nil
+                    end
+                end
+            )
+
+        X.RefreshKillMaster=refreshKillMaster
+        X.RefreshKill=refreshKillMaster
+        X.KillHolder=killHolder
+    end
+
+    --// VISUAL UI
+    do
+        local playerHolder,playerInner=
+            X.Expand(
+                visualPage,
+                "Player ESP"
+            )
+
+        X.Toggle(
+            playerInner,
+            "Boxes",
+            function()
+                return S.PlayerBoxes
+            end,
+            function(v)
+                S.PlayerBoxes=v
+            end
+        )
+
+        X.Toggle(
+            playerInner,
+            "Names",
+            function()
+                return S.PlayerNames
+            end,
+            function(v)
+                S.PlayerNames=v
+            end
+        )
+
+        X.Toggle(
+            playerInner,
+            "Health",
+            function()
+                return S.PlayerHealth
+            end,
+            function(v)
+                S.PlayerHealth=v
+            end
+        )
+
+        X.Toggle(
+            playerInner,
+            "Tracers",
+            function()
+                return S.PlayerTracers
+            end,
+            function(v)
+                S.PlayerTracers=v
+            end
+        )
+
+        X.Slider(
+            playerInner,
+            "Box Size",
+            1,
+            3,
+            S.PlayerBoxSize,
+            function(v)
+                S.PlayerBoxSize=v
+            end
+        )
+
+        X.Slider(
+            playerInner,
+            "Box Thickness",
+            1,
+            6,
+            S.PlayerBoxThickness,
+            function(v)
+                S.PlayerBoxThickness=v
+            end
+        )
+
+        X.Slider(
+            playerInner,
+            "Name Size",
+            8,
+            30,
+            S.PlayerNameSize,
+            function(v)
+                S.PlayerNameSize=v
+            end
+        )
+
+        X.Slider(
+            playerInner,
+            "Health Size",
+            8,
+            30,
+            S.PlayerHealthSize,
+            function(v)
+                S.PlayerHealthSize=v
+            end
+        )
+
+        X.Slider(
+            playerInner,
+            "Tracer Thickness",
+            1,
+            6,
+            S.PlayerTracerThickness,
+            function(v)
+                S.PlayerTracerThickness=v
+            end
+        )
+
+        X.ColorSlider(
+            playerInner,
+            "Box Color",
+            S.PlayerBoxColor,
+            function(v)
+                S.PlayerBoxColor=v
+            end
+        )
+
+        local itemHolder,itemInner=
+            X.Expand(
+                visualPage,
+                "Item ESP"
+            )
+
+        X.Toggle(
+            itemInner,
+            "Boxes",
+            function()
+                return S.ItemBoxes
+            end,
+            function(v)
+                S.ItemBoxes=v
+
+                if X.RefreshItemESP then
+                    X.RefreshItemESP()
+                end
+            end
+        )
+
+        X.Toggle(
+            itemInner,
+            "Names",
+            function()
+                return S.ItemNames
+            end,
+            function(v)
+                S.ItemNames=v
+
+                if X.RefreshItemESP then
+                    X.RefreshItemESP()
+                end
+            end
+        )
+
+        X.Toggle(
+            itemInner,
+            "Tracers",
+            function()
+                return S.ItemTracers
+            end,
+            function(v)
+                S.ItemTracers=v
+
+                if X.RefreshItemESP then
+                    X.RefreshItemESP()
+                end
+            end
+        )
+
+        X.Slider(
+            itemInner,
+            "Box Size",
+            1,
+            3,
+            S.ItemBoxSize,
+            function(v)
+                S.ItemBoxSize=v
+            end
+        )
+
+        X.Slider(
+            itemInner,
+            "Box Thickness",
+            1,
+            6,
+            S.ItemBoxThickness,
+            function(v)
+                S.ItemBoxThickness=v
+            end
+        )
+
+        X.Slider(
+            itemInner,
+            "Name Size",
+            8,
+            30,
+            S.ItemNameSize,
+            function(v)
+                S.ItemNameSize=v
+            end
+        )
+
+        X.Slider(
+            itemInner,
+            "Tracer Thickness",
+            1,
+            6,
+            S.ItemTracerThickness,
+            function(v)
+                S.ItemTracerThickness=v
+            end
+        )
+
+        X.ColorSlider(
+            itemInner,
+            "Box Color",
+            S.ItemBoxColor,
+            function(v)
+                S.ItemBoxColor=v
+            end
+        )
+
+        X.PlayerESPHolder=playerHolder
+        X.ItemESPHolder=itemHolder
+    end
+
+    --// EXTRA UI
+    do
+        local allowed={
+            "Bowling Ball",
+            "Naginata",
+            "Banana Peel",
+            "TNT",
+            "Tinted Glasses",
+            "Transfigured Human",
+            "Sniper",
+            "Hazenoki's Eye",
+            "Voice Recorder",
+            "Transfigured Flesh",
+            "Playful Cloud",
+            "Gun",
+            "Jet Black",
+            "Coin",
+            "Soda"
+        }
+
+        X.ItemNames=allowed
+
+        local bringHolder,bringInner=
+            X.Expand(
+                extraPage,
+                "Bring Items"
+            )
+
+        X.BringInner=bringInner
+        X.BringHolder=bringHolder
+
+        X.Dropdown(
+            bringInner,
+            "Item",
+            allowed,
+            S.BringItem,
+            function(v)
+                S.BringItem=v
+            end
+        )
+
+        local function ActionButton(parent,text,fn)
+            local b=Instance.new("TextButton",parent)
+            b.Size=UDim2.new(CW,0,0,34)
+            b.BorderSizePixel=0
+            b.BackgroundColor3=X.CT().Button
+            b.Font=Enum.Font.Gotham
+            b.TextSize=13
+            b.TextColor3=Color3.new(1,1,1)
+            b.TextXAlignment=Enum.TextXAlignment.Left
+            b.AutoButtonColor=false
+            b.Text="  "..text
+
+            local c=Instance.new("UICorner",b)
+            c.CornerRadius=UDim.new(0,7)
+
+            X.Reg(b,"Button")
+
+            b.MouseButton1Click:Connect(fn)
+
+            return b
+        end
+
+        X.ActionButton=ActionButton
+
+        ActionButton(
+            bringInner,
+            "Bring Item",
+            function()
+                if X.BringOne then
+                    X.BringOne(S.BringItem)
+                end
+            end
+        )
+
+        ActionButton(
+            bringInner,
+            "Bring All",
+            function()
+                if X.BringAll then
+                    X.BringAll()
+                end
+            end
+        )
+    end
+
+    --// SETTINGS UI
+    do
+        local holder=Instance.new("Frame",settingsPage)
+        holder.Size=UDim2.new(CW,0,0,36)
+        holder.BackgroundColor3=X.CT().Button
+        holder.BorderSizePixel=0
+        holder.ClipsDescendants=true
+
+        local c=Instance.new("UICorner",holder)
+        c.CornerRadius=UDim.new(0,7)
+
+        X.Reg(holder,"Button")
+
+        local b=Instance.new("TextButton",holder)
+        b.Size=UDim2.new(1,0,0,36)
+        b.BackgroundTransparency=1
+        b.BorderSizePixel=0
+        b.Font=Enum.Font.Gotham
+        b.TextSize=13
+        b.TextXAlignment=Enum.TextXAlignment.Left
+        b.AutoButtonColor=false
+
+        local arrow=Instance.new("TextLabel",b)
+        arrow.BackgroundTransparency=1
+        arrow.AnchorPoint=Vector2.new(1,.5)
+        arrow.Position=UDim2.new(1,-12,.5,0)
+        arrow.Size=UDim2.fromOffset(18,18)
+        arrow.Font=Enum.Font.GothamBold
+        arrow.Text="›"
+        arrow.TextSize=18
+        arrow.TextColor3=Color3.new(1,1,1)
+
+        local list=Instance.new("Frame",holder)
+        list.Position=UDim2.fromOffset(5,38)
+        list.Size=UDim2.new(1,-10,0,0)
+        list.AutomaticSize=Enum.AutomaticSize.Y
+        list.BackgroundTransparency=1
+
+        local ll=Instance.new("UIListLayout",list)
+        ll.Padding=UDim.new(0,4)
+
+        local lp=Instance.new("UIPadding",list)
+        lp.PaddingBottom=UDim.new(0,7)
+
+        local open=false
+
+        local function resize()
+            task.defer(function()
+                X.tw(holder,{
+                    Size=UDim2.new(
+                        CW,
+                        0,
+                        0,
+                        open and (38+list.AbsoluteSize.Y) or 36
+                    )
+                })
+
+                b.Text="  Themes ("..S.Theme..")"
+
+                X.tw(arrow,{
+                    Rotation=open and 90 or 0
+                })
+            end)
+        end
+
+        for _,name in ipairs({"Midnight"}) do
+            local x=Instance.new("TextButton",list)
+            x.Size=UDim2.new(1,0,0,32)
+            x.BorderSizePixel=0
+            x.Font=Enum.Font.Gotham
+            x.TextSize=12
+            x.TextXAlignment=Enum.TextXAlignment.Left
+            x.Text="  "..name
+            x.AutoButtonColor=false
+            x.BackgroundColor3=X.CT().Button
+
+            local xc=Instance.new("UICorner",x)
+            xc.CornerRadius=UDim.new(0,6)
+
+            X.Reg(x,"Button")
+
+            x.MouseButton1Click:Connect(function()
+                S.Theme=name
+
+                X.Theme()
+
+                if X.RefreshLock then
+                    X.RefreshLock()
+                end
+
+                if X.RefreshLockMaster then
+                    X.RefreshLockMaster()
+                end
+
+                if X.RefreshLockKey then
+                    X.RefreshLockKey()
+                end
+
+                if X.RefreshFlightKey then
+                    X.RefreshFlightKey()
+                end
+
+                if X.RefreshFlightMaster then
+                    X.RefreshFlightMaster()
+                end
+
+                if X.RefreshBlackKey then
+                    X.RefreshBlackKey()
+                end
+
+                if X.RefreshBlackMaster then
+                    X.RefreshBlackMaster()
+                end
+
+                if X.RefreshKillKey then
+                    X.RefreshKillKey()
+                end
+
+                if X.RefreshKillMaster then
+                    X.RefreshKillMaster()
+                end
+
+                if X.RefreshTheme then
+                    X.RefreshTheme()
+                end
+
+                open=false
+                resize()
+            end)
+        end
+
+        b.MouseButton1Click:Connect(function()
+            open=not open
+            resize()
+        end)
+
+        X.RefreshTheme=function()
+            b.Text="  Themes ("..S.Theme..")"
+        end
+
+        X.RefreshThemeSize=resize
+
+        resize()
+    end
+
+    --// NAVIGATION
+    local navButtons={}
+    local currentButton=nil
+
+    local function Category(text)
+        local l=Instance.new("TextLabel",nav)
+        l.Size=UDim2.new(1,0,0,23)
+        l.BackgroundTransparency=1
+        l.Font=Enum.Font.GothamBold
+        l.TextSize=9
+        l.TextColor3=Color3.fromRGB(135,135,135)
+        l.TextXAlignment=Enum.TextXAlignment.Left
+        l.Text="  "..text
+        return l
+    end
+
+    local function NavRow(text,page)
+        local holder=Instance.new("Frame",nav)
+        holder.Size=UDim2.new(1,0,0,35)
+        holder.BackgroundTransparency=1
+
+        local b=X.SideButton(holder,text)
+        b.Size=UDim2.new(1,0,1,0)
+
+        local arrow=Instance.new("TextLabel",holder)
+        arrow.BackgroundTransparency=1
+        arrow.AnchorPoint=Vector2.new(1,.5)
+        arrow.Position=UDim2.new(1,-9,.5,0)
+        arrow.Size=UDim2.fromOffset(15,18)
+        arrow.Font=Enum.Font.GothamBold
+        arrow.Text="›"
+        arrow.TextSize=17
+        arrow.TextColor3=X.CT().Accent
+
+        local bg=Instance.new("Frame",holder)
+        bg.Size=UDim2.new(1,0,1,0)
+        bg.BackgroundColor3=X.CT().Hover
+        bg.BackgroundTransparency=1
+        bg.BorderSizePixel=0
+        bg.ZIndex=0
+
+        local bc=Instance.new("UICorner",bg)
+        bc.CornerRadius=UDim.new(0,7)
+
+        b.ZIndex=2
+        arrow.ZIndex=2
+
+        local function select()
+            if currentButton then
+                currentButton.bg.BackgroundTransparency=1
+                currentButton.arrow.TextColor3=X.CT().Accent
+            end
+
+            currentButton={
+                bg=bg,
+                arrow=arrow
+            }
+
+            bg.BackgroundTransparency=0
+            arrow.TextColor3=X.CT().Text
+
+            X.ShowPage(page)
+        end
+
+        b.MouseButton1Click:Connect(select)
+
+        navButtons[#navButtons+1]={
+            holder=holder,
+            button=b,
+            bg=bg,
+            arrow=arrow,
+            page=page
+        }
+
+        return holder
+    end
+
+    Category("COMBAT")
+    NavRow("Lock On","Combat")
+    NavRow("Flight","Combat")
+    NavRow("Auto Black Flash","Combat")
+    NavRow("Hitbox Expander","Combat")
+    NavRow("Defense Attorney QTE","Combat")
+    NavRow("Auto Counter","Combat")
+    NavRow("Auto Block","Combat")
+    NavRow("Anti-Stun","Combat")
+    NavRow("Kill","Combat")
+
+    Category("VISUALS")
+    NavRow("Player ESP","Visuals")
+    NavRow("Item ESP","Visuals")
+
+    Category("EXTRA")
+    NavRow("Bring Items","Extra")
+
+    Category("SETTINGS")
+    NavRow("Themes","Settings")
+
+    --// MINIMIZE
+    local minimized=false
+
+    min.MouseButton1Click:Connect(function()
+        minimized=not minimized
+
+        if minimized then
+            Body.Visible=false
+
+            X.tw(M,{
+                Size=UDim2.fromOffset(860,52)
+            })
+        else
+            Body.Visible=true
+
+            X.tw(M,{
+                Size=UDim2.fromOffset(860,560)
+            })
+        end
+    end)
+
+    close.MouseButton1Click:Connect(function()
+        S.MenuVisible=false
+        gui.Enabled=false
+    end)
+
+    --// DRAG
+    do
+        local dragging=false
+        local dragStart
+        local startPos
+
+        top.InputBegan:Connect(function(input)
+            if input.UserInputType==Enum.UserInputType.MouseButton1 then
+                dragging=true
+                dragStart=input.Position
+                startPos=M.Position
+            end
+        end)
+
+        top.InputEnded:Connect(function(input)
+            if input.UserInputType==Enum.UserInputType.MouseButton1 then
+                dragging=false
+            end
+        end)
+
+        U.InputChanged:Connect(function(input)
+            if not dragging then
+                return
+            end
+
+            if input.UserInputType==Enum.UserInputType.MouseMovement then
+                local delta=input.Position-dragStart
+
+                M.Position=UDim2.new(
+                    startPos.X.Scale,
+                    startPos.X.Offset+delta.X,
+                    startPos.Y.Scale,
+                    startPos.Y.Offset+delta.Y
+                )
+            end
+        end)
+    end
+
+    --// RIGHT SHIFT MENU
+    U.InputBegan:Connect(function(input,processed)
+        if processed then
+            return
+        end
+
+        if input.KeyCode==Enum.KeyCode.RightShift then
+            S.MenuVisible=not S.MenuVisible
+            gui.Enabled=S.MenuVisible
+        end
+    end)
+
+    --// INITIAL PAGE
+    X.ShowPage("Combat")
+
+    for _,p in ipairs(pages) do
+        p.Visible=false
+    end
+
+    combatPage.Visible=true
+
+    if navButtons[1] then
+        currentButton={
+            bg=navButtons[1].bg,
+            arrow=navButtons[1].arrow
+        }
+
+        navButtons[1].bg.BackgroundTransparency=0
+    end
+
+    X.Theme()
+
+    X.RefreshLock()
+    X.RefreshLockMaster()
+    X.RefreshLockKey()
+
+    X.RefreshFlightKey()
+    X.RefreshFlightMaster()
+
+    X.RefreshBlackKey()
+    X.RefreshBlackMaster()
+
+    X.RefreshKillKey()
+    X.RefreshKillMaster()
+
+    M.Visible=true
+    Body.Visible=true
+end
+
+--// CHARACTER CACHE
+do
+    local CharacterSet={}
+
+    local function AddCharacter(p)
+        if p.Character then
+            CharacterSet[p.Character]=true
+        end
+
+        p.CharacterAdded:Connect(function(c)
+            CharacterSet[c]=true
+        end)
+
+        p.CharacterRemoving:Connect(function(c)
+            CharacterSet[c]=nil
+        end)
+    end
+
+    function X.IsPlayerPart(o)
+        if not o then
+            return true
+        end
+
+        for c in pairs(CharacterSet) do
+            if c
+                and c.Parent
+                and o:IsDescendantOf(c)
+            then
+                return true
+            end
+        end
+
+        return false
+    end
+
+    for _,p in ipairs(P:GetPlayers()) do
+        AddCharacter(p)
+    end
+
+    P.PlayerAdded:Connect(AddCharacter)
+
+    P.PlayerRemoving:Connect(function(p)
+        if p.Character then
+            CharacterSet[p.Character]=nil
+        end
+    end)
+end
+
+--// ITEM HELPERS / BRING
+do
+    local Allowed={
+        ["Bowling Ball"]=true,
+        ["Naginata"]=true,
+        ["Banana Peel"]=true,
+        ["TNT"]=true,
+        ["Tinted Glasses"]=true,
+        ["Transfigured Human"]=true,
+        ["Sniper"]=true,
+        ["Hazenoki's Eye"]=true,
+        ["Voice Recorder"]=true,
+        ["Transfigured Flesh"]=true,
+        ["Playful Cloud"]=true,
+        ["Gun"]=true,
+        ["Jet Black"]=true,
+        ["Coin"]=true,
+        ["Soda"]=true
+    }
+
+    local function ItemRoot(o)
+        if not o then
+            return
+        end
+
+        if o:IsA("BasePart") then
+            return o
+        end
+
+        if o:IsA("Tool") then
+            return o:FindFirstChild("Handle")
+                or o:FindFirstChildWhichIsA(
+                    "BasePart",
+                    true
+                )
+        end
+
+        if o:IsA("Model") then
+            return o.PrimaryPart
+                or o:FindFirstChildWhichIsA(
+                    "BasePart",
+                    true
+                )
+        end
+    end
+
+    X.ItemRoot=ItemRoot
+
+    local function ItemContainer(o)
+        if not o
+            or X.IsPlayerPart(o)
+        then
+            return
+        end
+
+        if (
+            (o:IsA("Model") or o:IsA("Tool"))
+            and Allowed[o.Name]
+            and ItemRoot(o)
+        ) then
+            return o
+        end
+
+        local x=o
+
+        while x and x~=W do
+            if (
+                (x:IsA("Model") or x:IsA("Tool"))
+                and Allowed[x.Name]
+                and ItemRoot(x)
+                and not X.IsPlayerPart(x)
+            ) then
+                return x
+            end
+
+            x=x.Parent
+        end
+
+        if o:IsA("BasePart")
+            and Allowed[o.Name]
+        then
+            return o
+        end
+    end
+
+    X.ItemContainer=ItemContainer
+
+    local function GetItems(name)
+        local found={}
+        local seen={}
+
+        for _,o in ipairs(W:GetDescendants()) do
+            local x=ItemContainer(o)
+
+            if x
+                and (
+                    not name
+                    or x.Name==name
+                )
+                and not seen[x]
+            then
+                seen[x]=true
+                found[#found+1]=x
+            end
+        end
+
+        return found
+    end
+
+    X.GetItems=GetItems
+
+    local function MoveItem(o,pos)
+        o=ItemContainer(o) or o
+
+        if not o
+            or not o.Parent
+            or X.IsPlayerPart(o)
+        then
+            return false
+        end
+
+        local r=ItemRoot(o)
+
+        if not r then
+            return false
+        end
+
+        return pcall(function()
+            if o:IsA("Model") then
+                o:PivotTo(CFrame.new(pos))
+            else
+                r.CFrame=CFrame.new(pos)
+            end
+        end)
+    end
+
+    X.MoveItem=MoveItem
+
+    function X.BringOne(name)
+        local r=X.Root(L.Character)
+
+        if not r then
+            return
+        end
+
+        local best,bd=nil,math.huge
+
+        for _,o in ipairs(GetItems(name)) do
+            local x=ItemRoot(o)
+
+            if x then
+                local d=(
+                    x.Position-r.Position
+                ).Magnitude
+
+                if d<bd then
+                    bd=d
+                    best=o
+                end
+            end
+        end
+
+        if best then
+            MoveItem(
+                best,
+                r.Position
+                +r.CFrame.LookVector*3
+                +Vector3.new(0,1,0)
+            )
+        end
+    end
+
+    function X.BringAll()
+        local r=X.Root(L.Character)
+
+        if not r then
+            return
+        end
+
+        for i,o in ipairs(GetItems()) do
+            local n=i-1
+
+            local angle=
+                (n%12)/12*
+                math.pi*2
+
+            local radius=
+                3+
+                math.floor(n/12)*2
+
+            MoveItem(
+                o,
+                r.Position+
+                Vector3.new(
+                    math.cos(angle)*radius,
+                    1+math.floor(n/36)*2,
+                    math.sin(angle)*radius
+                )
+            )
+        end
+    end
+end
+
+--// TARGET TRACKING
+do
+    local touchConnections={}
+
+    local function ClearTouch()
+        for _,c in ipairs(touchConnections) do
+            pcall(function()
+                c:Disconnect()
+            end)
+        end
+
+        table.clear(touchConnections)
+    end
+
+    local function Track(c)
+        if not c then
+            return
+        end
+
+        ClearTouch()
+
+        local function add(x)
+            if x:IsA("BasePart") then
+                table.insert(
+                    touchConnections,
+                    x.Touched:Connect(function(hit)
+                        local p=X.FindPlayer(hit)
+
+                        if p
+                            and X.Valid(p)
+                        then
+                            X.LastTarget=p
+                        end
+                    end)
+                )
+            end
+        end
+
+        for _,x in ipairs(c:GetDescendants()) do
+            add(x)
+        end
+
+        table.insert(
+            touchConnections,
+            c.DescendantAdded:Connect(add)
+        )
+    end
+
+    if L.Character then
+        task.defer(function()
+            Track(L.Character)
+        end)
+    end
+
+    L.CharacterAdded:Connect(function(c)
+        X.LastTarget=nil
+
+        task.wait(.1)
+
+        if c.Parent then
+            Track(c)
+        end
+    end)
+
+    function X.Closest()
+        local cam=W.CurrentCamera
+
+        if not cam then
+            return
+        end
+
+        local center=cam.ViewportSize/2
+        local best,bd=nil,math.huge
+
+        for _,p in ipairs(P:GetPlayers()) do
+            if X.Valid(p) then
+                local root=X.Root(p.Character)
+
+                local q,on=cam:WorldToViewportPoint(
+                    root.Position
+                )
+
+                if on then
+                    local d=(
+                        Vector2.new(q.X,q.Y)-center
+                    ).Magnitude
+
+                    if d<bd then
+                        bd=d
+                        best=p
+                    end
+                end
+            end
+        end
+
+        return best
+    end
+end
+
+--// AUTO BLACK FLASH
+do
+    local lastPulse=0
+    local debounce=.9
+
+    local function Stop()
+        X.AutoBlackFlashRunning=false
+        X.AutoBlackFlashTarget=nil
+
+        if X.AutoBlackFlashFollow then
+            pcall(function()
+                X.AutoBlackFlashFollow:Disconnect()
+            end)
+
+            X.AutoBlackFlashFollow=nil
+        end
+    end
+
+    X.StopAutoBlackFlash=Stop
+
+    local function Behind(target)
+        if not X.Valid(target) then
+            return
+        end
+
+        local my,tr=
+            X.Root(L.Character),
+            X.Root(target.Character)
+
+        if not my or not tr then
+            return
+        end
+
+        local pos=
+            tr.Position-
+            tr.CFrame.LookVector*4
+
+        pos=Vector3.new(
+            pos.X,
+            tr.Position.Y,
+            pos.Z
+        )
+
+        return CFrame.lookAt(
+            pos,
+            tr.Position
+        )
+    end
+
+    local function MouseClick()
+        local ok=false
+
+        pcall(function()
+            if mouse1click then
+                mouse1click()
+                ok=true
+            end
+        end)
+
+        if ok then
+            return true
+        end
+
+        pcall(function()
+            VIM:SendMouseButtonEvent(
+                0,0,0,true,game,0
+            )
+
+            VIM:SendMouseButtonEvent(
+                0,0,0,false,game,0
+            )
+
+            ok=true
+        end)
+
+        return ok
+    end
+
+    local function BlackInput()
+        pcall(function()
+            VIM:SendMouseButtonEvent(
+                0,0,0,true,game,0
+            )
+
+            task.wait(.02)
+
+            VIM:SendMouseButtonEvent(
+                0,0,0,false,game,0
+            )
+        end)
+    end
+
+    local function HasWindow(c)
+        if not c then
+            return false
+        end
+
+        if c:GetAttribute("BlackFlashWindow")==true then
+            return true
+        end
+
+        for _,d in ipairs(c:GetDescendants()) do
+            if d:IsA("Animator") then
+                for _,track in ipairs(
+                    d:GetPlayingAnimationTracks()
+                ) do
+                    local a=track.Animation
+
+                    if a
+                        and string.find(
+                            string.lower(a.Name or ""),
+                            "blackflash",
+                            1,
+                            true
+                        )
+                    then
+                        return true
+                    end
+                end
+            end
+        end
+
+        return false
+    end
+
+    function X.StartAutoBlackFlash(target)
+        if not S.AutoBlackFlash
+            or not X.Valid(target)
+        then
+            return
+        end
+
+        Stop()
+
+        X.AutoBlackFlashRunning=true
+        X.AutoBlackFlashTarget=target
+
+        local root=X.Root(L.Character)
+
+        if not root then
+            Stop()
+            return
+        end
+
+        task.spawn(function()
+            local elapsed=0
+
+            while X.AutoBlackFlashRunning
+                and X.AutoBlackFlashTarget==target
+                and X.Valid(target)
+                and root.Parent
+                and elapsed<.08
+            do
+                task.wait()
+
+                local cf=Behind(target)
+
+                if not cf then
+                    Stop()
+                    return
+                end
+
+                elapsed+=.016
+
+                local a=math.clamp(
+                    elapsed/.08,
+                    0,
+                    1
+                )
+
+                a=1-(1-a)^3
+
+                root.CFrame=root.CFrame:Lerp(
+                    cf,
+                    a
+                )
+            end
+
+            if X.AutoBlackFlashRunning
+                and X.AutoBlackFlashTarget==target
+                and X.Valid(target)
+            then
+                local cf=Behind(target)
+
+                if cf and root.Parent then
+                    root.CFrame=cf
+                end
+            end
+        end)
+
+        X.AutoBlackFlashFollow=
+            R.RenderStepped:Connect(function()
+                if not X.AutoBlackFlashRunning then
+                    return
+                end
+
+                if not X.Valid(
+                    X.AutoBlackFlashTarget
+                ) then
+                    Stop()
+                    return
+                end
+
+                local r=X.Root(L.Character)
+                local cf=Behind(
+                    X.AutoBlackFlashTarget
+                )
+
+                if not r or not cf then
+                    Stop()
+                    return
+                end
+
+                if (
+                    r.Position-cf.Position
+                ).Magnitude>1 then
+                    r.CFrame=r.CFrame:Lerp(
+                        cf,
+                        .3
+                    )
+                end
+            end)
+
+        task.spawn(function()
+            task.wait(.1)
+
+            if not X.AutoBlackFlashRunning
+                or X.AutoBlackFlashTarget~=target
+                or not S.AutoBlackFlash
+                or not X.Valid(target)
+            then
+                return
+            end
+
+            local r=X.Root(L.Character)
+            local cf=Behind(target)
+
+            if r and cf then
+                r.CFrame=cf
+            end
+
+            task.wait()
+
+            if not X.AutoBlackFlashRunning
+                or X.AutoBlackFlashTarget~=target
+                or not S.AutoBlackFlash
+                or not X.Valid(target)
+            then
+                return
+            end
+
+            MouseClick()
+
+            task.wait(.35)
+
+            if X.AutoBlackFlashTarget==target then
+                Stop()
+            end
+        end)
+    end
+
+    R.Heartbeat:Connect(function()
+        if not S.AutoBlackFlash then
+            return
+        end
+
+        if tick()-lastPulse<debounce then
+            return
+        end
+
+        local c=L.Character
+
+        if not c then
+            return
+        end
+
+        if HasWindow(c) then
+            lastPulse=tick()
+
+            if not X.AutoBlackFlashRunning then
+                BlackInput()
+            end
+        end
+
+        if _G.AlastxrBlackFlash then
+            _G.AlastxrBlackFlash=nil
+            lastPulse=tick()
+            BlackInput()
+        end
+    end)
+end
+
+--// ANTI-STUN
+do
+    local Running=false
+
+    local function RestoreMovement()
+        local c=L.Character
+        local h=X.Hum(c)
+
+        if not c or not h then
+            return
+        end
+
+        if h.Health<=0 then
+            return
+        end
+
+        pcall(function()
+            h.PlatformStand=false
+            h.AutoRotate=true
+        end)
+
+        local r=X.Root(c)
+
+        if r then
+            pcall(function()
+                r.AssemblyLinearVelocity=
+                    Vector3.new(
+                        r.AssemblyLinearVelocity.X,
+                        0,
+                        r.AssemblyLinearVelocity.Z
+                    )
+
+                r.AssemblyAngularVelocity=
+                    Vector3.zero
+            end)
+        end
+    end
+
+    local function RemoveCommonStunObjects()
+        local c=L.Character
+
+        if not c then
+            return
+        end
+
+        for _,o in ipairs(c:GetChildren()) do
+            local n=string.lower(o.Name)
+
+            if string.find(n,"stun",1,true)
+                or string.find(n,"ragdoll",1,true)
+                or string.find(n,"freeze",1,true)
+                or string.find(n,"root",1,true)
+            then
+                if o:IsA("BoolValue")
+                    or o:IsA("NumberValue")
+                    or o:IsA("IntValue")
+                then
+                    pcall(function()
+                        if o:IsA("BoolValue") then
+                            o.Value=false
+                        else
+                            o.Value=0
+                        end
+                    end)
+                end
+            end
+        end
+    end
+
+    R.Heartbeat:Connect(function()
+        if not S.AntiStun then
+            if Running then
+                Running=false
+            end
+
+            return
+        end
+
+        Running=true
+        RestoreMovement()
+        RemoveCommonStunObjects()
+    end)
+
+    local function HookCharacter(c)
+        if not c then
+            return
+        end
+
+        local names={
+            "Stunned",
+            "Stun",
+            "HitStun",
+            "StunTime",
+            "Ragdoll",
+            "Ragdolled",
+            "Frozen",
+            "Freeze",
+            "Rooted",
+            "Root"
+        }
+
+        for _,name in ipairs(names) do
+            c:GetAttributeChangedSignal(name):Connect(function()
+                if S.AntiStun then
+                    task.defer(function()
+                        RestoreMovement()
+                    end)
+                end
+            end)
+        end
+    end
+
+    if L.Character then
+        HookCharacter(L.Character)
+    end
+
+    L.CharacterAdded:Connect(function(c)
+        task.wait(.15)
+        HookCharacter(c)
+    end)
+end
+
+--// FLIGHT
+do
+    local previous=false
+
+    local function FlightState(active)
+        local h=X.Hum(L.Character)
+        local r=X.Root(L.Character)
+
+        if not h then
+            return
+        end
+
+        if active then
+            h.PlatformStand=true
+            h.AutoRotate=false
+        else
+            h.PlatformStand=false
+            h.AutoRotate=true
+
+            if r then
+                r.AssemblyLinearVelocity=Vector3.zero
+                r.AssemblyAngularVelocity=Vector3.zero
+            end
+        end
+    end
+
+    local function Ready()
+        if not (
+            S.FlyMaster
+            and S.Fly
+        ) then
+            if previous then
+                FlightState(false)
+                previous=false
+            end
+
+            return
+        end
+
+        local c=L.Character
+        local h=X.Hum(c)
+        local r=X.Root(c)
+        local cam=W.CurrentCamera
+
+        if not c
+            or not h
+            or not r
+            or not cam
+            or h.Health<=0
+        then
+            return
+        end
+
+        if not previous then
+            FlightState(true)
+            previous=true
+        end
+
+        return c,h,r,cam
+    end
+
+    R:BindToRenderStep(
+        "AlastxrFlight",
+        Enum.RenderPriority.Camera.Value+50,
+        function()
+            local c,h,r,cam=Ready()
+
+            if not c then
+                return
+            end
+
+            local look=cam.CFrame.LookVector
+
+            if not (
+                S.LockOnMaster
+                and S.LockOnEnabled
+                and S.LockOnMode=="Character"
+                and X.Valid(X.LockTarget)
+            ) then
+                local flat=Vector3.new(
+                    look.X,
+                    0,
+                    look.Z
+                )
+
+                if flat.Magnitude>.001 then
+                    r.CFrame=CFrame.lookAt(
+                        r.Position,
+                        r.Position+flat.Unit
+                    )
+                end
+            end
+
+            r.AssemblyAngularVelocity=Vector3.zero
+        end
+    )
+
+    R:BindToRenderStep(
+        "AlastxrFlightVelocity",
+        Enum.RenderPriority.Last.Value,
+        function()
+            local c,h,r,cam=Ready()
+
+            if not c then
+                return
+            end
+
+            local look=cam.CFrame.LookVector
+            local right=cam.CFrame.RightVector
+            local direction=Vector3.zero
+
+            if U:IsKeyDown(Enum.KeyCode.W) then
+                direction+=look
+            end
+
+            if U:IsKeyDown(Enum.KeyCode.S) then
+                direction-=look
+            end
+
+            if U:IsKeyDown(Enum.KeyCode.D) then
+                direction+=right
+            end
+
+            if U:IsKeyDown(Enum.KeyCode.A) then
+                direction-=right
+            end
+
+            if direction.Magnitude>0 then
+                r.AssemblyLinearVelocity=
+                    direction.Unit*S.FlySpeed
+            else
+                r.AssemblyLinearVelocity=
+                    Vector3.zero
+            end
+
+            r.AssemblyAngularVelocity=Vector3.zero
+        end
+    )
+
+    L.CharacterAdded:Connect(function()
+        previous=false
+
+        if X.StopAutoBlackFlash then
+            X.StopAutoBlackFlash()
+        end
+    end)
+end
+
+--// LOCK ON
+do
+    R:BindToRenderStep(
+        "AlastxrStrongLock",
+        Enum.RenderPriority.Camera.Value+100,
+        function()
+            if not (
+                S.LockOnMaster
+                and S.LockOnEnabled
+            ) then
+                local h=X.Hum(L.Character)
+
+                if h and not S.Fly then
+                    h.AutoRotate=true
+                end
+
+                return
+            end
+
+            if not X.Valid(X.LockTarget) then
+                S.LockOnEnabled=false
+                X.LockTarget=nil
+
+                if X.RefreshLock then
+                    X.RefreshLock()
+                end
+
+                local h=X.Hum(L.Character)
+
+                if h and not S.Fly then
+                    h.AutoRotate=true
+                end
+
+                return
+            end
+
+            local tr=X.Root(
+                X.LockTarget.Character
+            )
+
+            local my=X.Root(
+                L.Character
+            )
+
+            local cam=W.CurrentCamera
+
+            if not tr then
+                return
+            end
+
+            if S.LockOnMode=="Camera" then
+                if cam then
+                    cam.CFrame=CFrame.lookAt(
+                        cam.CFrame.Position,
+                        tr.Position
+                    )
+                end
+            else
+                local h=X.Hum(L.Character)
+
+                if h then
+                    h.AutoRotate=false
+                end
+
+                if my then
+                    local pos=Vector3.new(
+                        tr.Position.X,
+                        my.Position.Y,
+                        tr.Position.Z
+                    )
+
+                    if (
+                        pos-my.Position
+                    ).Magnitude>.001 then
+                        my.CFrame=CFrame.lookAt(
+                            my.Position,
+                            pos
+                        )
+                    end
+
+                    my.AssemblyAngularVelocity=
+                        Vector3.zero
+                end
+            end
+        end
+    )
+end
+
+--// KILL
+do
+    R.Heartbeat:Connect(function()
+        if not S.KillActive then
+            return
+        end
+
+        if not X.KillTarget
+            or X.KillTarget.Parent~=P
+            or not X.Valid(X.KillTarget)
+        then
+            X.KillTarget=nil
+            S.KillActive=false
+
+            if X.RefreshKill then
+                X.RefreshKill()
+            end
+
+            return
+        end
+
+        local my,tr=
+            X.Root(L.Character),
+            X.Root(X.KillTarget.Character)
+
+        if not my or not tr then
+            return
+        end
+
+        local pos=
+            tr.Position-
+            tr.CFrame.LookVector*4
+
+        pos=Vector3.new(
+            pos.X,
+            tr.Position.Y,
+            pos.Z
+        )
+
+        my.CFrame=CFrame.lookAt(
+            pos,
+            tr.Position
+        )
+
+        my.AssemblyLinearVelocity=Vector3.zero
+        my.AssemblyAngularVelocity=Vector3.zero
+    end)
+end
+
+--// HITBOX EXPANDER
+do
+    local Original=setmetatable(
+        {},
+        {__mode="k"}
+    )
+
+    local function Apply(part)
+        if not part
+            or not part.Parent
+        then
+            return
+        end
+
+        if not Original[part] then
+            Original[part]=part.Size
+        end
+
+        local amount=math.clamp(
+            S.HitboxSize,
+            1,
+            12
+        )
+
+        local newSize=Vector3.new(
+            amount,
+            amount,
+            amount
+        )
+
+        pcall(function()
+            part.Size=newSize
+            part.CanTouch=true
+            part.CanQuery=true
+        end)
+    end
+
+    local function Restore(part)
+        local old=Original[part]
+
+        if not old then
+            return
+        end
+
+        pcall(function()
+            if part.Parent then
+                part.Size=old
+            end
+        end)
+
+        Original[part]=nil
+    end
+
+    R.Heartbeat:Connect(function()
+        if not S.HitboxExpander then
+            if next(Original)==nil then
+                return
+            end
+
+            for part in pairs(Original) do
+                if part.Parent then
+                    Restore(part)
+                else
+                    Original[part]=nil
+                end
+            end
+
+            return
+        end
+
+        for _,p in ipairs(P:GetPlayers()) do
+            if p~=L then
+                local c=p.Character
+                local h=c and X.Hum(c)
+
+                if h and h.Health>0 then
+                    local hrp=c:FindFirstChild(
+                        "HumanoidRootPart"
+                    )
+
+                    if hrp then
+                        Apply(hrp)
+                    end
+                end
+            end
+        end
+
+        for part in pairs(Original) do
+            if not part.Parent then
+                Original[part]=nil
+            end
+        end
+    end)
+
+    P.PlayerRemoving:Connect(function(p)
+        local c=p.Character
+
+        if not c then
+            return
+        end
+
+        local hrp=c:FindFirstChild(
+            "HumanoidRootPart"
+        )
+
+        if hrp then
+            Restore(hrp)
+        end
+    end)
+end
+
+--// AUTO BLOCK
+do
+    local blockHeld=false
+    local lastRelease=0
+    local BLOCK_KEY=Enum.KeyCode.F
+
+    local function UnderAttack()
+        local c=L.Character
+        local h=X.Hum(c)
+
+        if not h then
+            return false
+        end
+
+        local state=h:GetState()
+
+        if state==Enum.HumanoidStateType.Ragdoll
+            or state==Enum.HumanoidStateType.FallingDown
+        then
+            return true
+        end
+
+        for _,name in ipairs({
+            "Stunned",
+            "HitStun",
+            "Attacking",
+            "Combat"
+        }) do
+            if c:GetAttribute(name)==true
+                or h:GetAttribute(name)==true
+            then
+                return true
+            end
+        end
+
+        local lastHP=_G._AlastxrLastHP
+
+        if lastHP
+            and h.Health<lastHP
+        then
+            return true
+        end
+
+        return h.Health<h.MaxHealth*.99
+    end
+
+    local function Hold()
+        if blockHeld then
+            return
+        end
+
+        blockHeld=true
+
+        pcall(function()
+            VIM:SendKeyEvent(
+                true,
+                BLOCK_KEY,
+                false,
+                game
+            )
+        end)
+    end
+
+    local function Release()
+        if not blockHeld then
+            return
+        end
+
+        blockHeld=false
+        lastRelease=tick()
+
+        pcall(function()
+            VIM:SendKeyEvent(
+                false,
+                BLOCK_KEY,
+                false,
+                game
+            )
+        end)
+    end
+
+    R.Heartbeat:Connect(function()
+        local h=X.Hum(L.Character)
+
+        if h then
+            _G._AlastxrLastHP=h.Health
+        end
+
+        if not S.AutoBlock then
+            if blockHeld then
+                Release()
+            end
+
+            return
+        end
+
+        if tick()-lastRelease<.15 then
+            return
+        end
+
+        if UnderAttack() then
+            Hold()
+        end
+
+        if blockHeld
+            and tick()-lastRelease>.35
+        then
+            Release()
+        end
+    end)
+end
+
+--// AUTO COUNTER
+do
+    local lastCounter={}
+
+    R.Heartbeat:Connect(function()
+        if not S.AutoCounter then
+            return
+        end
+
+        local my=X.Root(L.Character)
+
+        if not my then
+            return
+        end
+
+        local attacker
+
+        for _,p in ipairs(P:GetPlayers()) do
+            if p~=L
+                and X.Valid(p)
+            then
+                local r=X.Root(p.Character)
+                local h=X.Hum(p.Character)
+
+                if r
+                    and h
+                    and (
+                        r.Position-my.Position
+                    ).Magnitude<=12
+                then
+                    local animator=
+                        h:FindFirstChildOfClass(
+                            "Animator"
+                        )
+
+                    if animator then
+                        for _,track in ipairs(
+                            animator:GetPlayingAnimationTracks()
+                        ) do
+                            local a=track.Animation
+
+                            local n=
+                                a
+                                and string.lower(a.Name or "")
+                                or ""
+
+                            if string.find(
+                                n,
+                                "punch",
+                                1,
+                                true
+                            )
+                                or string.find(
+                                    n,
+                                    "attack",
+                                    1,
+                                    true
+                                )
+                                or string.find(
+                                    n,
+                                    "m1",
+                                    1,
+                                    true
+                                )
+                            then
+                                attacker=p
+                                break
+                            end
+                        end
+                    end
+                end
+            end
+
+            if attacker then
+                break
+            end
+        end
+
+        if not attacker then
+            return
+        end
+
+        if lastCounter[attacker]
+            and tick()-lastCounter[attacker]<.55
+        then
+            return
+        end
+
+        lastCounter[attacker]=tick()
+
+        task.spawn(function()
+            pcall(function()
+                VIM:SendMouseButtonEvent(
+                    0,
+                    0,
+                    2,
+                    true,
+                    game,
+                    0
+                )
+
+                task.wait(.12)
+
+                VIM:SendMouseButtonEvent(
+                    0,
+                    0,
+                    2,
+                    false,
+                    game,
+                    0
+                )
+            end)
+        end)
+    end)
+end
+
+--// DEFENSE ATTORNEY QTE
+do
+    local keywords={
+        "higuruma",
+        "trial",
+        "qte",
+        "judgement",
+        "judgment",
+        "sentencing",
+        "court",
+        "finaljudgement",
+        "finaljudgment"
+    }
+
+    local solved={}
+
+    local function FindQTE(root)
+        if not root then
+            return
+        end
+
+        for _,g in ipairs(root:GetDescendants()) do
+            if g:IsA("ScreenGui")
+                and g.Enabled
+            then
+                local n=string.lower(g.Name)
+
+                for _,k in ipairs(keywords) do
+                    if string.find(
+                        n,
+                        k,
+                        1,
+                        true
+                    ) then
+                        return g
+                    end
+                end
+            end
+        end
+    end
+
+    local function FindButton(gui)
+        if not gui then
+            return
+        end
+
+        for _,d in ipairs(gui:GetDescendants()) do
+            if d:IsA("GuiButton")
+                and d.Visible
+            then
+                return d
+            end
+        end
+    end
+
+    R.Heartbeat:Connect(function()
+        if not S.HigurumaQTE then
+            return
+        end
+
+        local pg=L:FindFirstChild(
+            "PlayerGui"
+        )
+
+        local gui=FindQTE(pg)
+
+        if not gui then
+            return
+        end
+
+        if solved[gui]
+            and tick()-solved[gui]<.5
+        then
+            return
+        end
+
+        local b=FindButton(gui)
+
+        if not b then
+            return
+        end
+
+        solved[gui]=tick()
+
+        pcall(function()
+            b:Activate()
+        end)
+
+        pcall(function()
+            local pos=
+                b.AbsolutePosition+
+                b.AbsoluteSize/2
+
+            VIM:SendMouseButtonEvent(
+                pos.X,
+                pos.Y,
+                0,
+                true,
+                game,
+                0
+            )
+
+            VIM:SendMouseButtonEvent(
+                pos.X,
+                pos.Y,
+                0,
+                false,
+                game,
+                0
+            )
+        end)
+    end)
+end
+
+--// PLAYER ESP
+do
+    local folder=Instance.new(
+        "Folder",
+        X.G
+    )
+
+    folder.Name="AlastxrOnTop_ESP"
+
+    local PE={}
+
+    local function Hide(d)
+        if not d then
+            return
+        end
+
+        if d.Box then
+            d.Box.Visible=false
+            d.Box.Enabled=false
+        end
+
+        if d.Name then
+            d.Name.Visible=false
+        end
+
+        if d.Health then
+            d.Health.Visible=false
+        end
+
+        if d.Info then
+            d.Info.Enabled=false
+        end
+    end
+
+    local function Remove(p)
+        local d=PE[p]
+
+        if not d then
+            return
+        end
+
+        for _,v in pairs(d) do
+            if typeof(v)=="Instance"
+                and v.Parent
+            then
+                v:Destroy()
+            end
+        end
+
+        PE[p]=nil
+    end
+
+    local function Make(p)
+        if p==L then
+            return
+        end
+
+        Remove(p)
+
+        local d={}
+        PE[p]=d
+
+        local f=Instance.new(
+            "Folder",
+            folder
+        )
+
+        f.Name=p.Name
+        d.Holder=f
+
+        local box=Instance.new(
+            "Highlight",
+            f
+        )
+
+        box.Adornee=p.Character
+        box.FillTransparency=1
+        box.OutlineTransparency=0
+        box.OutlineColor=S.PlayerBoxColor
+        box.DepthMode=
+            Enum.HighlightDepthMode.AlwaysOnTop
+        box.Enabled=S.PlayerBoxes
+
+        d.Box=box
+
+        local info=Instance.new(
+            "BillboardGui",
+            f
+        )
+
+        info.Adornee=X.Root(
+            p.Character
+        )
+
+        info.Size=UDim2.fromOffset(
+            190,
+            45
+        )
+
+        info.StudsOffset=Vector3.new(
+            0,
+            3,
+            0
+        )
+
+        info.AlwaysOnTop=true
+        info.Enabled=false
+
+        d.Info=info
+
+        local text=Instance.new(
+            "TextLabel",
+            info
+        )
+
+        text.Size=UDim2.fromScale(1,1)
+        text.BackgroundTransparency=1
+        text.TextColor3=Color3.new(1,1,1)
+        text.TextStrokeTransparency=0
+        text.Font=Enum.Font.GothamBold
+        text.TextSize=S.PlayerNameSize
+
+        d.Name=text
+
+        local hp=Instance.new(
+            "TextLabel",
+            f
+        )
+
+        hp.Visible=false
+        d.Health=hp
+    end
+
+    local function Update(p,d)
+        if not p.Character then
+            Hide(d)
+            return
+        end
+
+        local h=X.Hum(p.Character)
+        local root=X.Root(p.Character)
+
+        if not h
+            or not root
+            or h.Health<=0
+        then
+            Hide(d)
+            return
+        end
+
+        local cam=W.CurrentCamera
+
+        if not cam then
+            Hide(d)
+            return
+        end
+
+        d.Box.Adornee=p.Character
+        d.Box.Enabled=S.PlayerBoxes
+        d.Box.OutlineColor=S.PlayerBoxColor
+
+        d.Info.Adornee=root
+        d.Info.Enabled=
+            S.PlayerNames
+            or S.PlayerHealth
+
+        local lines={}
+
+        if S.PlayerNames then
+            lines[#lines+1]=
+                p.DisplayName..
+                (
+                    p.DisplayName~=p.Name
+                    and " ["..p.Name.."]"
+                    or ""
+                )
+        end
+
+        if S.PlayerHealth then
+            lines[#lines+1]=
+                math.floor(
+                    math.max(
+                        0,
+                        h.Health
+                    )
+                )..
+                "/"..
+                math.floor(
+                    h.MaxHealth
+                )
+        end
+
+        d.Name.Text=table.concat(
+            lines,
+            "\n"
+        )
+
+        d.Name.TextSize=S.PlayerNameSize
+        d.Info.Enabled=#lines>0
+    end
+
+    local function Hook(p)
+        if p==L then
+            return
+        end
+
+        Make(p)
+
+        p.CharacterAdded:Connect(function()
+            task.wait(.15)
+
+            if p.Parent then
+                Make(p)
+            end
+        end)
+    end
+
+    for _,p in ipairs(P:GetPlayers()) do
+        Hook(p)
+    end
+
+    P.PlayerAdded:Connect(Hook)
+    P.PlayerRemoving:Connect(Remove)
+
+    R.RenderStepped:Connect(function()
+        local enabled=
+            S.PlayerBoxes
+            or S.PlayerNames
+            or S.PlayerHealth
+            or S.PlayerTracers
+
+        if not enabled then
+            for _,d in pairs(PE) do
+                Hide(d)
+            end
+
+            return
+        end
+
+        for p,d in pairs(PE) do
+            if p.Parent then
+                pcall(
+                    Update,
+                    p,
+                    d
+                )
+            else
+                Remove(p)
+            end
+        end
+    end)
+end
+
+--// ITEM ESP
+do
+    local folder=X.G:FindFirstChild(
+        "AlastxrOnTop_ESP"
+    )
+
+    local itemFolder=Instance.new(
+        "Folder",
+        folder
+    )
+
+    itemFolder.Name="ItemESP"
+
+    local IE={}
+
+    local Allowed={
+        ["Bowling Ball"]=true,
+        ["Naginata"]=true,
+        ["Banana Peel"]=true,
+        ["TNT"]=true,
+        ["Tinted Glasses"]=true,
+        ["Transfigured Human"]=true,
+        ["Sniper"]=true,
+        ["Hazenoki's Eye"]=true,
+        ["Voice Recorder"]=true,
+        ["Transfigured Flesh"]=true,
+        ["Playful Cloud"]=true,
+        ["Gun"]=true,
+        ["Jet Black"]=true,
+        ["Coin"]=true,
+        ["Soda"]=true
+    }
+
+    local function Enabled()
+        return S.ItemBoxes
+            or S.ItemNames
+            or S.ItemTracers
+    end
+
+    local function Resolve(o)
+        if not o
+            or X.IsPlayerPart(o)
+        then
+            return
+        end
+
+        local x=o
+
+        while x and x~=W do
+            if (
+                (x:IsA("Model") or x:IsA("Tool"))
+                and Allowed[x.Name]
+                and X.ItemRoot(x)
+                and not X.IsPlayerPart(x)
+            ) then
+                return x
+            end
+
+            x=x.Parent
+        end
+
+        if o:IsA("BasePart")
+            and Allowed[o.Name]
+        then
+            return o
+        end
+    end
+
+    local function Hide(d)
+        if not d then
+            return
+        end
+
+        if d.Box then
+            d.Box.Enabled=false
+        end
+
+        if d.Info then
+            d.Info.Enabled=false
+        end
+    end
+
+    local function Remove(o)
+        local d=IE[o]
+
+        if not d then
+            return
+        end
+
+        for _,v in pairs(d) do
+            if typeof(v)=="Instance"
+                and v.Parent
+            then
+                v:Destroy()
+            end
+        end
+
+        IE[o]=nil
+    end
+
+    local function Make(o)
+        o=Resolve(o)
+
+        if not o
+            or IE[o]
+        then
+            return
+        end
+
+        local root=X.ItemRoot(o)
+
+        if not root then
+            return
+        end
+
+        local d={}
+        IE[o]=d
+
+        local box=Instance.new(
+            "Highlight",
+            itemFolder
+        )
+
+        box.Adornee=o
+        box.FillTransparency=1
+        box.OutlineTransparency=0
+        box.OutlineColor=S.ItemBoxColor
+        box.DepthMode=
+            Enum.HighlightDepthMode.AlwaysOnTop
+        box.Enabled=S.ItemBoxes
+
+        d.Box=box
+
+        local info=Instance.new(
+            "BillboardGui",
+            itemFolder
+        )
+
+        info.Adornee=root
+        info.Size=UDim2.fromOffset(
+            180,
+            30
+        )
+
+        info.StudsOffset=Vector3.new(
+            0,
+            2.5,
+            0
+        )
+
+        info.AlwaysOnTop=true
+        info.Enabled=S.ItemNames
+
+        local text=Instance.new(
+            "TextLabel",
+            info
+        )
+
+        text.Size=UDim2.fromScale(1,1)
+        text.BackgroundTransparency=1
+        text.Text=o.Name
+        text.TextColor3=Color3.new(1,1,1)
+        text.TextStrokeTransparency=0
+        text.TextSize=S.ItemNameSize
+        text.Font=Enum.Font.GothamBold
+
+        d.Info=info
+    end
+
+    local function Scan()
+        if not Enabled() then
+            return
+        end
+
+        local seen={}
+
+        for _,o in ipairs(
+            W:GetDescendants()
+        ) do
+            local item=Resolve(o)
+
+            if item then
+                seen[item]=true
+
+                if not IE[item] then
+                    Make(item)
+                end
+            end
+        end
+
+        for o in pairs(IE) do
+            if not seen[o]
+                or not o.Parent
+            then
+                Remove(o)
+            end
+        end
+    end
+
+    local scanNeeded=true
+    local scanRunning=false
+
+    X.RefreshItemESP=function()
+        if not Enabled() then
+            for _,d in pairs(IE) do
+                Hide(d)
+            end
+
+            scanNeeded=false
+            return
+        end
+
+        scanNeeded=true
+    end
+
+    W.DescendantAdded:Connect(function(o)
+        if not Enabled() then
+            return
+        end
+
+        task.defer(function()
+            if not o.Parent
+                or not Enabled()
+            then
+                return
+            end
+
+            local item=Resolve(o)
+
+            if item
+                and not IE[item]
+            then
+                Make(item)
+            end
+        end)
+    end)
+
+    W.DescendantRemoving:Connect(function(o)
+        if IE[o] then
+            Remove(o)
+        end
+    end)
+
+    R.RenderStepped:Connect(function()
+        if not Enabled() then
+            return
+        end
+
+        if scanNeeded
+            and not scanRunning
+        then
+            scanRunning=true
+            scanNeeded=false
+
+            task.spawn(function()
+                Scan()
+                scanRunning=false
+            end)
+        end
+
+        for o,d in pairs(IE) do
+            if not o.Parent then
+                Remove(o)
+            elseif Enabled() then
+                d.Box.Enabled=S.ItemBoxes
+                d.Box.OutlineColor=S.ItemBoxColor
+                d.Info.Enabled=S.ItemNames
+
+                local root=X.ItemRoot(o)
+
+                if root then
+                    d.Info.Adornee=root
+                end
+
+                local label=
+                    d.Info:FindFirstChildOfClass(
+                        "TextLabel"
+                    )
+
+                if label then
+                    label.TextSize=S.ItemNameSize
+                    label.Text=o.Name
+                end
+            end
+        end
+    end)
+
+    task.defer(function()
+        if Enabled() then
+            scanNeeded=true
+        end
+    end)
+end
+
+--// INPUT / KEYBINDS
+do
+    U.InputBegan:Connect(function(input,processed)
+        if input.UserInputType~=
+            Enum.UserInputType.Keyboard
+        then
+            return
+        end
+
+        local key=input.KeyCode
+
+        --// Keybind capture happens before processed input.
+        if X.LockIsListening
+            and X.LockIsListening()
+        then
+            if key~=Enum.KeyCode.Unknown then
+                X.SetLockKey(key)
+            end
+
+            return
+        end
+
+        if X.FlightIsListening
+            and X.FlightIsListening()
+        then
+            if key~=Enum.KeyCode.Unknown then
+                X.SetFlightKey(key)
+            end
+
+            return
+        end
+
+        if X.BlackIsListening
+            and X.BlackIsListening()
+        then
+            if key~=Enum.KeyCode.Unknown then
+                X.SetBlackKey(key)
+            end
+
+            return
+        end
+
+        if X.KillIsListening
+            and X.KillIsListening()
+        then
+            if key~=Enum.KeyCode.Unknown then
+                X.SetKillKey(key)
+            end
+
+            return
+        end
+
+        if processed then
+            return
+        end
+
+        if key==S.FlyKey
+            and S.FlyMaster
+        then
+            S.Fly=not S.Fly
+
+            if X.RefreshFlight then
+                X.RefreshFlight()
+            end
+        end
+
+        if key==S.LockOnKey
+            and S.LockOnMaster
+        then
+            if S.LockOnEnabled then
+                S.LockOnEnabled=false
+                X.LockTarget=nil
+            else
+                local target=X.Closest()
+
+                if target
+                    and X.Valid(target)
+                then
+                    X.LockTarget=target
+                    S.LockOnEnabled=true
+                end
+            end
+
+            if X.RefreshLock then
+                X.RefreshLock()
+            end
+        end
+
+        if key==S.KillKey
+            and S.KillMaster
+        then
+            if S.KillActive then
+                S.KillActive=false
+                X.KillTarget=nil
+            else
+                local target=X.LastTarget
+
+                if target
+                    and X.Valid(target)
+                then
+                    X.KillTarget=target
+                    S.KillActive=true
+                else
+                    X.KillTarget=nil
+                    S.KillActive=false
+                end
+            end
+
+            if X.RefreshKill then
+                X.RefreshKill()
+            end
+        end
+
+        if key==S.AutoBlackFlashKey
+            and S.AutoBlackFlash
+        then
+            local target=X.LastTarget
+
+            if not target
+                or not X.Valid(target)
+            then
+                target=X.Closest()
+            end
+
+            if target
+                and X.Valid(target)
+                and X.StartAutoBlackFlash
+            then
+                X.StartAutoBlackFlash(target)
+            end
+        end
+    end)
+end
+
+--// PLAYER CLEANUP
+do
+    P.PlayerRemoving:Connect(function(p)
+        if p==X.LockTarget then
+            X.LockTarget=nil
+            S.LockOnEnabled=false
+
+            if X.RefreshLock then
+                X.RefreshLock()
+            end
+        end
+
+        if p==X.KillTarget then
+            X.KillTarget=nil
+            S.KillActive=false
+
+            if X.RefreshKill then
+                X.RefreshKill()
+            end
+        end
+
+        if p==X.LastTarget then
+            X.LastTarget=nil
+        end
+
+        if p==X.AutoBlackFlashTarget
+            and X.StopAutoBlackFlash
+        then
+            X.StopAutoBlackFlash()
+        end
+    end)
+end
+
+--// FINAL REFRESH
+do
+    pcall(function()
+        if X.Theme then
+            X.Theme()
+        end
+
+        if X.RefreshLock then
+            X.RefreshLock()
+        end
+
+        if X.RefreshLockMaster then
+            X.RefreshLockMaster()
+        end
+
+        if X.RefreshLockKey then
+            X.RefreshLockKey()
+        end
+
+        if X.RefreshFlightKey then
+            X.RefreshFlightKey()
+        end
+
+        if X.RefreshFlightMaster then
+            X.RefreshFlightMaster()
+        end
+
+        if X.RefreshBlackKey then
+            X.RefreshBlackKey()
+        end
+
+        if X.RefreshBlackMaster then
+            X.RefreshBlackMaster()
+        end
+
+        if X.RefreshKillKey then
+            X.RefreshKillKey()
+        end
+
+        if X.RefreshKillMaster then
+            X.RefreshKillMaster()
+        end
+
+        if X.RefreshItemESP then
+            X.RefreshItemESP()
+        end
+    end)
+
+    X.G.Enabled=true
+
+    print(
+        "[AlastxrOnTop] UI loaded."
+    )
+end
