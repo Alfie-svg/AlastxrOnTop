@@ -1,1 +1,3607 @@
+--// AlastxrOnTop | Private / Sandbox Test
+repeat task.wait() until game:IsLoaded()
 
+local P=game:GetService("Players")
+local U=game:GetService("UserInputService")
+local R=game:GetService("RunService")
+local T=game:GetService("TweenService")
+local W=game:GetService("Workspace")
+local VIM=game:GetService("VirtualInputManager")
+local L=P.LocalPlayer
+local C=game:GetService("CoreGui")
+
+pcall(function()
+    R:UnbindFromRenderStep("AlastxrStrongLock")
+    R:UnbindFromRenderStep("AlastxrFlight")
+    R:UnbindFromRenderStep("AlastxrFlightVelocity")
+    for _,n in ipairs({"AlastxrOnTop","AlastxrOnTop_ESP"})do
+        local x=C:FindFirstChild(n)
+        if x then x:Destroy()end
+    end
+end)
+
+--// STATE
+local S={
+    PlayerBoxes=true,PlayerNames=true,PlayerHealth=true,PlayerTracers=false,
+    ItemBoxes=true,ItemNames=true,ItemTracers=false,
+    PlayerBoxColor=Color3.new(1,1,1),ItemBoxColor=Color3.new(1,1,1),
+    PlayerBoxThickness=2,PlayerBoxSize=1,PlayerNameSize=14,
+    PlayerHealthSize=13,PlayerTracerThickness=2,
+    ItemBoxSize=1,ItemBoxThickness=2,ItemNameSize=14,ItemTracerThickness=2,
+    Fly=false,FlyMaster=true,FlyKey=Enum.KeyCode.X,FlySpeed=60,
+    AntiStun=false,HigurumaQTE=false,AutoCounter=false,AutoBlock=false,
+    LockOnEnabled=false,LockOnMaster=true,LockOnKey=Enum.KeyCode.C,
+    LockOnMode="Camera",
+    KillActive=false,KillMaster=true,KillKey=Enum.KeyCode.V,
+    AutoBlackFlash=false,AutoBlackFlashKey=Enum.KeyCode.Three,
+    HitboxExpander=false,HitboxSize=5,
+    Theme="Default",
+    MenuVisible=true,MenuCondensed=false,
+    BringItem="Gun"
+}
+
+local Themes={
+    Default={
+        Main=Color3.fromRGB(30,30,30),Top=Color3.fromRGB(22,22,22),
+        Side=Color3.fromRGB(25,25,25),Content=Color3.fromRGB(34,34,34),
+        Panel=Color3.fromRGB(40,40,40),Button=Color3.fromRGB(48,48,48),
+        Hover=Color3.fromRGB(60,60,60),Accent=Color3.fromRGB(145,145,145),
+        Text=Color3.fromRGB(240,240,240),Stroke=Color3.fromRGB(75,75,75),
+        On=Color3.fromRGB(45,145,75)
+    },
+    Midnight={
+        Main=Color3.fromRGB(30,10,14),Top=Color3.fromRGB(48,10,16),
+        Side=Color3.fromRGB(38,10,15),Content=Color3.fromRGB(44,13,19),
+        Panel=Color3.fromRGB(58,16,23),Button=Color3.fromRGB(69,19,27),
+        Hover=Color3.fromRGB(90,25,34),Accent=Color3.fromRGB(175,40,52),
+        Text=Color3.fromRGB(245,235,235),Stroke=Color3.fromRGB(105,30,40),
+        On=Color3.fromRGB(55,145,75)
+    }
+}
+
+local A=TweenInfo.new(.22,Enum.EasingStyle.Quart,Enum.EasingDirection.Out)
+local CW=.96
+
+local function tw(o,p)
+    if o and o.Parent then
+        local x=T:Create(o,A,p)
+        x:Play()
+        return x
+    end
+end
+
+--// TARGET HELPERS
+local LastTarget,LockTarget,KillTarget
+
+local function Root(c)
+    return c and (
+        c:FindFirstChild("HumanoidRootPart") or
+        c:FindFirstChild("UpperTorso") or
+        c:FindFirstChild("Torso")
+    )
+end
+
+local function Hum(c)
+    return c and c:FindFirstChildOfClass("Humanoid")
+end
+
+local function Valid(p)
+    if not p or p==L or not p.Character then return false end
+    local h,r=Hum(p.Character),Root(p.Character)
+    return h and h.Health>0 and r~=nil
+end
+
+local function FindPlayer(part)
+    if not part then return end
+    for _,p in ipairs(P:GetPlayers())do
+        if p~=L and p.Character and part:IsDescendantOf(p.Character)then
+            return p
+        end
+    end
+end
+
+--// UI
+local TO,CT={},Themes.Default
+local G=Instance.new("ScreenGui")
+G.Name="AlastxrOnTop"
+G.ResetOnSpawn=false
+G.IgnoreGuiInset=true
+G.ZIndexBehavior=Enum.ZIndexBehavior.Sibling
+pcall(function()G.Parent=C end)
+if not G.Parent then G.Parent=L:WaitForChild("PlayerGui")end
+
+local M=Instance.new("Frame",G)
+M.Name="Main"
+M.Size=UDim2.fromOffset(720,520)
+M.Position=UDim2.new(.5,-360,.5,-260)
+M.BorderSizePixel=0
+M.ClipsDescendants=true
+local mc=Instance.new("UICorner",M)
+mc.CornerRadius=UDim.new(0,10)
+local ms=Instance.new("UIStroke",M)
+ms.Thickness=1
+
+local Top=Instance.new("Frame",M)
+Top.Size=UDim2.new(1,0,0,52)
+Top.BorderSizePixel=0
+local tc=Instance.new("UICorner",Top)
+tc.CornerRadius=UDim.new(0,10)
+
+local function TB(t,p,s,z)
+    local b=Instance.new("TextButton",Top)
+    b.BackgroundTransparency=1
+    b.Position=p
+    b.Size=s
+    b.Font=z or Enum.Font.GothamBold
+    b.Text=t
+    b.TextColor3=Color3.new(1,1,1)
+    b.AutoButtonColor=false
+    return b
+end
+
+local Title=Instance.new("TextLabel",Top)
+Title.BackgroundTransparency=1
+Title.Position=UDim2.fromOffset(18,0)
+Title.Size=UDim2.new(1,-120,1,0)
+Title.Font=Enum.Font.GothamBold
+Title.Text="AlastxrOnTop"
+Title.TextSize=18
+Title.TextXAlignment=Enum.TextXAlignment.Left
+Title.TextColor3=Color3.new(1,1,1)
+
+local Min=TB("—",UDim2.new(1,-78,0,0),UDim2.fromOffset(38,52))
+Min.TextSize=20
+
+local Close=TB("×",UDim2.new(1,-40,0,0),UDim2.fromOffset(38,52))
+Close.TextSize=22
+
+local Body=Instance.new("Frame",M)
+Body.Position=UDim2.fromOffset(0,52)
+Body.Size=UDim2.new(1,0,1,-52)
+Body.BackgroundTransparency=1
+
+local Side=Instance.new("Frame",Body)
+Side.Size=UDim2.new(0,155,1,0)
+Side.BorderSizePixel=0
+
+local sp=Instance.new("UIPadding",Side)
+sp.PaddingTop=UDim.new(0,15)
+sp.PaddingLeft=UDim.new(0,10)
+sp.PaddingRight=UDim.new(0,10)
+
+local sl=Instance.new("UIListLayout",Side)
+sl.Padding=UDim.new(0,8)
+sl.SortOrder=Enum.SortOrder.LayoutOrder
+
+local Content=Instance.new("ScrollingFrame",Body)
+Content.Position=UDim2.fromOffset(155,0)
+Content.Size=UDim2.new(1,-155,1,0)
+Content.BackgroundTransparency=1
+Content.BorderSizePixel=0
+Content.ScrollBarThickness=0
+Content.ScrollBarImageTransparency=1
+Content.ScrollingDirection=Enum.ScrollingDirection.Y
+Content.ScrollingEnabled=true
+Content.AutomaticCanvasSize=Enum.AutomaticSize.Y
+Content.CanvasSize=UDim2.new()
+
+local cp=Instance.new("UIPadding",Content)
+cp.PaddingTop=UDim.new(0,14)
+cp.PaddingLeft=UDim.new(0,14)
+cp.PaddingRight=UDim.new(0,14)
+cp.PaddingBottom=UDim.new(0,14)
+
+local function Reg(o,r)
+    TO[o]=r
+    return o
+end
+
+local function White(x)
+    for _,o in ipairs(x:GetDescendants())do
+        if o:IsA("TextLabel")or o:IsA("TextButton")then
+            o.TextColor3=Color3.new(1,1,1)
+        end
+    end
+end
+
+local function Theme()
+    CT=Themes[S.Theme]or Themes.Default
+    for o,r in pairs(TO)do
+        if o.Parent then
+            if o:IsA("TextLabel")or o:IsA("TextButton")then
+                o.TextColor3=Color3.new(1,1,1)
+            elseif o:IsA("UIStroke")and CT[r]then
+                o.Color=CT[r]
+            elseif(o:IsA("Frame")or o:IsA("ScrollingFrame"))and CT[r]then
+                o.BackgroundColor3=CT[r]
+            end
+        end
+    end
+    White(G)
+end
+
+local function SideButton(t)
+    local b=Instance.new("TextButton",Side)
+    b.Size=UDim2.new(1,0,0,42)
+    b.BorderSizePixel=0
+    b.Font=Enum.Font.GothamMedium
+    b.Text=t
+    b.TextSize=14
+    b.TextColor3=Color3.new(1,1,1)
+    b.AutoButtonColor=false
+    local c=Instance.new("UICorner",b)
+    c.CornerRadius=UDim.new(0,7)
+    return Reg(b,"Button")
+end
+
+local function Page()
+    local p=Instance.new("Frame",Content)
+    p.BackgroundTransparency=1
+    p.Size=UDim2.new(1,0,0,0)
+    p.AutomaticSize=Enum.AutomaticSize.Y
+    p.Visible=false
+    local l=Instance.new("UIListLayout",p)
+    l.Padding=UDim.new(0,10)
+    l.SortOrder=Enum.SortOrder.LayoutOrder
+    return p
+end
+
+local function Group(par,t)
+    local g=Instance.new("Frame",par)
+    g.Size=UDim2.new(CW,0,0,44)
+    g.AutomaticSize=Enum.AutomaticSize.Y
+    g.BorderSizePixel=0
+    g.ClipsDescendants=true
+    local c=Instance.new("UICorner",g)
+    c.CornerRadius=UDim.new(0,8)
+    Reg(g,"Panel")
+
+    local h=Instance.new("TextLabel",g)
+    h.BackgroundTransparency=1
+    h.Position=UDim2.fromOffset(14,0)
+    h.Size=UDim2.new(1,-28,0,44)
+    h.Font=Enum.Font.GothamBold
+    h.Text=t
+    h.TextSize=12
+    h.TextColor3=Color3.new(1,1,1)
+    h.TextXAlignment=Enum.TextXAlignment.Left
+    Reg(h,"Text")
+
+    local i=Instance.new("Frame",g)
+    i.Position=UDim2.fromOffset(10,44)
+    i.Size=UDim2.new(1,-20,0,0)
+    i.AutomaticSize=Enum.AutomaticSize.Y
+    i.BackgroundTransparency=1
+
+    local l=Instance.new("UIListLayout",i)
+    l.Padding=UDim.new(0,7)
+    l.SortOrder=Enum.SortOrder.LayoutOrder
+
+    local p=Instance.new("UIPadding",i)
+    p.PaddingBottom=UDim.new(0,10)
+
+    return g,i
+end
+
+local function Expand(par,t,suffix)
+    local h=Instance.new("Frame",par)
+    h.Size=UDim2.new(CW,0,0,38)
+    h.BackgroundColor3=CT.Button
+    h.BorderSizePixel=0
+    h.ClipsDescendants=true
+
+    local c=Instance.new("UICorner",h)
+    c.CornerRadius=UDim.new(0,7)
+    Reg(h,"Button")
+
+    local b=Instance.new("TextButton",h)
+    b.Size=UDim2.new(1,0,0,38)
+    b.BackgroundTransparency=1
+    b.BorderSizePixel=0
+    b.Font=Enum.Font.Gotham
+    b.TextSize=13
+    b.TextColor3=Color3.new(1,1,1)
+    b.TextXAlignment=Enum.TextXAlignment.Left
+    b.AutoButtonColor=false
+
+    local a=Instance.new("TextLabel",b)
+    a.BackgroundTransparency=1
+    a.AnchorPoint=Vector2.new(1,.5)
+    a.Position=UDim2.new(1,-12,.5,0)
+    a.Size=UDim2.fromOffset(18,18)
+    a.Font=Enum.Font.GothamBold
+    a.Text="›"
+    a.TextSize=18
+    a.TextColor3=Color3.new(1,1,1)
+
+    local i=Instance.new("Frame",h)
+    i.Position=UDim2.fromOffset(5,38)
+    i.Size=UDim2.new(1,-10,0,0)
+    i.AutomaticSize=Enum.AutomaticSize.Y
+    i.BackgroundTransparency=1
+
+    local l=Instance.new("UIListLayout",i)
+    l.Padding=UDim.new(0,5)
+    l.SortOrder=Enum.SortOrder.LayoutOrder
+
+    local p=Instance.new("UIPadding",i)
+    p.PaddingTop=UDim.new(0,5)
+    p.PaddingBottom=UDim.new(0,7)
+
+    local open=false
+
+    local function refresh()
+        b.Text="  "..t..(suffix and suffix()or"")
+        tw(a,{Rotation=open and 90 or 0})
+    end
+
+    local function resize()
+        task.defer(function()
+            tw(h,{
+                Size=UDim2.new(
+                    CW,0,0,
+                    open and 38+i.AbsoluteSize.Y or 38
+                )
+            })
+            refresh()
+        end)
+    end
+
+    b.MouseButton1Click:Connect(function()
+        open=not open
+        resize()
+    end)
+
+    i:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+        if open then resize()end
+    end)
+
+    refresh()
+    return h,i,refresh
+end
+
+local function Toggle(par,t,get,set)
+    local b=Instance.new("TextButton",par)
+    b.Size=UDim2.new(CW,0,0,36)
+    b.BorderSizePixel=0
+    b.Font=Enum.Font.Gotham
+    b.TextSize=13
+    b.TextXAlignment=Enum.TextXAlignment.Left
+    b.TextColor3=Color3.new(1,1,1)
+    b.AutoButtonColor=false
+    b.BackgroundColor3=CT.Button
+
+    local c=Instance.new("UICorner",b)
+    c.CornerRadius=UDim.new(0,7)
+    Reg(b,"Button")
+
+    local pill=Instance.new("Frame",b)
+    pill.AnchorPoint=Vector2.new(1,.5)
+    pill.Position=UDim2.new(1,-10,.5,0)
+    pill.Size=UDim2.fromOffset(42,20)
+    pill.BorderSizePixel=0
+
+    local pc=Instance.new("UICorner",pill)
+    pc.CornerRadius=UDim.new(1,0)
+
+    local k=Instance.new("Frame",pill)
+    k.AnchorPoint=Vector2.new(.5,.5)
+    k.Position=UDim2.new(0,10,.5,0)
+    k.Size=UDim2.fromOffset(14,14)
+    k.BorderSizePixel=0
+    k.BackgroundColor3=Color3.fromRGB(215,215,215)
+
+    local kc=Instance.new("UICorner",k)
+    kc.CornerRadius=UDim.new(1,0)
+
+    local function refresh()
+        local on=get()
+        b.Text="  "..t
+        b.BackgroundColor3=CT.Button
+        tw(pill,{
+            BackgroundColor3=on and CT.On or Color3.fromRGB(35,35,35)
+        })
+        tw(k,{
+            Position=UDim2.new(0,on and 32 or 10,.5,0)
+        })
+    end
+
+    b.MouseButton1Click:Connect(function()
+        set(not get())
+        refresh()
+    end)
+
+    refresh()
+    return b,refresh
+end
+
+local function Keybind(par,t,get,set)
+    local b=Instance.new("TextButton",par)
+    b.Size=UDim2.new(CW,0,0,36)
+    b.BorderSizePixel=0
+    b.Font=Enum.Font.Gotham
+    b.TextSize=13
+    b.TextXAlignment=Enum.TextXAlignment.Left
+    b.TextColor3=Color3.new(1,1,1)
+    b.AutoButtonColor=false
+    b.BackgroundColor3=CT.Button
+
+    local c=Instance.new("UICorner",b)
+    c.CornerRadius=UDim.new(0,7)
+    Reg(b,"Button")
+
+    local listen=false
+
+    local function refresh()
+        b.Text="  "..t..": "..(
+            listen and "Please Press Key"or get().Name
+        )
+        b.BackgroundColor3=CT.Button
+    end
+
+    b.MouseButton1Click:Connect(function()
+        listen=true
+        refresh()
+    end)
+
+    refresh()
+
+    return b,
+        function()listen=true;refresh()end,
+        function()return listen end,
+        function(k)set(k);listen=false;refresh()end,
+        refresh
+end
+
+local function Slider(par,t,min,max,val,cb)
+    local h=Instance.new("Frame",par)
+    h.Size=UDim2.new(CW,0,0,54)
+    h.BackgroundColor3=CT.Button
+    h.BorderSizePixel=0
+
+    local c=Instance.new("UICorner",h)
+    c.CornerRadius=UDim.new(0,7)
+    Reg(h,"Button")
+
+    local lab=Instance.new("TextLabel",h)
+    lab.BackgroundTransparency=1
+    lab.Position=UDim2.fromOffset(10,3)
+    lab.Size=UDim2.new(1,-20,0,20)
+    lab.Font=Enum.Font.Gotham
+    lab.TextSize=12
+    lab.TextColor3=Color3.new(1,1,1)
+    lab.TextXAlignment=Enum.TextXAlignment.Left
+    Reg(lab,"Text")
+
+    local bar=Instance.new("Frame",h)
+    bar.Position=UDim2.new(0,10,0,30)
+    bar.Size=UDim2.new(1,-20,0,9)
+    bar.BorderSizePixel=0
+    bar.ClipsDescendants=true
+    bar.BackgroundColor3=Color3.fromRGB(27,27,27)
+
+    local bc=Instance.new("UICorner",bar)
+    bc.CornerRadius=UDim.new(1,0)
+
+    local bs=Instance.new("UIStroke",bar)
+    bs.Thickness=1
+    Reg(bs,"Accent")
+
+    local fill=Instance.new("Frame",bar)
+    fill.BorderSizePixel=0
+
+    local fc=Instance.new("UICorner",fill)
+    fc.CornerRadius=UDim.new(1,0)
+
+    local knob=Instance.new("Frame",bar)
+    knob.AnchorPoint=Vector2.new(.5,.5)
+    knob.Size=UDim2.fromOffset(12,12)
+    knob.BorderSizePixel=0
+    knob.BackgroundColor3=Color3.new(1,1,1)
+    knob.ZIndex=3
+
+    local kc=Instance.new("UICorner",knob)
+    kc.CornerRadius=UDim.new(1,0)
+
+    local ks=Instance.new("UIStroke",knob)
+    ks.Thickness=1
+    Reg(ks,"Accent")
+
+    local drag=false
+
+    local function setv(v)
+        v=math.clamp(v,min,max)
+        local a=(v-min)/(max-min)
+        fill.Size=UDim2.new(a,0,1,0)
+        knob.Position=UDim2.new(a,0,.5,0)
+        lab.Text=t..": "..(
+            math.abs(v-math.floor(v))<.01
+            and math.floor(v)
+            or string.format("%.1f",v)
+        )
+        cb(v)
+    end
+
+    local function upd(x)
+        if bar.AbsoluteSize.X>0 then
+            setv(
+                min+(max-min)*math.clamp(
+                    (x-bar.AbsolutePosition.X)/bar.AbsoluteSize.X,
+                    0,1
+                )
+            )
+        end
+    end
+
+    bar.InputBegan:Connect(function(i)
+        if i.UserInputType==Enum.UserInputType.MouseButton1 then
+            drag=true
+            upd(i.Position.X)
+        end
+    end)
+
+    U.InputChanged:Connect(function(i)
+        if drag and i.UserInputType==Enum.UserInputType.MouseMovement then
+            upd(i.Position.X)
+        end
+    end)
+
+    U.InputEnded:Connect(function(i)
+        if i.UserInputType==Enum.UserInputType.MouseButton1 then
+            drag=false
+        end
+    end)
+
+    setv(val)
+    return h
+end
+
+local function ColorSlider(par,t,initial,cb)
+    local h=Instance.new("Frame",par)
+    h.Size=UDim2.new(CW,0,0,54)
+    h.BackgroundColor3=CT.Button
+    h.BorderSizePixel=0
+
+    local c=Instance.new("UICorner",h)
+    c.CornerRadius=UDim.new(0,7)
+    Reg(h,"Button")
+
+    local lab=Instance.new("TextLabel",h)
+    lab.BackgroundTransparency=1
+    lab.Position=UDim2.fromOffset(10,3)
+    lab.Size=UDim2.new(1,-20,0,20)
+    lab.Font=Enum.Font.Gotham
+    lab.TextSize=12
+    lab.TextColor3=Color3.new(1,1,1)
+    lab.TextXAlignment=Enum.TextXAlignment.Left
+    Reg(lab,"Text")
+
+    local bar=Instance.new("Frame",h)
+    bar.Position=UDim2.new(0,10,0,30)
+    bar.Size=UDim2.new(1,-20,0,9)
+    bar.BorderSizePixel=0
+    bar.ClipsDescendants=true
+    bar.BackgroundColor3=Color3.new(1,1,1)
+
+    local bc=Instance.new("UICorner",bar)
+    bc.CornerRadius=UDim.new(1,0)
+
+    local gr=Instance.new("UIGradient",bar)
+    gr.Color=ColorSequence.new({
+        ColorSequenceKeypoint.new(0,Color3.fromRGB(255,0,0)),
+        ColorSequenceKeypoint.new(.16,Color3.fromRGB(255,255,0)),
+        ColorSequenceKeypoint.new(.33,Color3.fromRGB(0,255,0)),
+        ColorSequenceKeypoint.new(.5,Color3.fromRGB(0,255,255)),
+        ColorSequenceKeypoint.new(.66,Color3.fromRGB(0,0,255)),
+        ColorSequenceKeypoint.new(.83,Color3.fromRGB(255,0,255)),
+        ColorSequenceKeypoint.new(1,Color3.fromRGB(255,0,0))
+    })
+
+    local st=Instance.new("UIStroke",bar)
+    st.Thickness=1
+    st.Color=Color3.new(1,1,1)
+
+    local drag=false
+    local hv=select(1,initial:ToHSV())*360
+
+    local function upd(x)
+        if bar.AbsoluteSize.X<=0 then return end
+        local a=math.clamp(
+            (x-bar.AbsolutePosition.X)/bar.AbsoluteSize.X,
+            0,1
+        )
+        hv=a*360
+        lab.Text=t..": "..math.floor(hv).."°"
+        cb(Color3.fromHSV(a,1,1))
+    end
+
+    bar.InputBegan:Connect(function(i)
+        if i.UserInputType==Enum.UserInputType.MouseButton1 then
+            drag=true
+            upd(i.Position.X)
+        end
+    end)
+
+    U.InputChanged:Connect(function(i)
+        if drag and i.UserInputType==Enum.UserInputType.MouseMovement then
+            upd(i.Position.X)
+        end
+    end)
+
+    U.InputEnded:Connect(function(i)
+        if i.UserInputType==Enum.UserInputType.MouseButton1 then
+            drag=false
+        end
+    end)
+
+    lab.Text=t..": "..math.floor(hv).."°"
+    return h
+end
+
+local function Dropdown(par,t,vals,current,cb)
+    local h=Instance.new("Frame",par)
+    h.Size=UDim2.new(CW,0,0,36)
+    h.BackgroundColor3=CT.Button
+    h.BorderSizePixel=0
+    h.ClipsDescendants=true
+
+    local c=Instance.new("UICorner",h)
+    c.CornerRadius=UDim.new(0,7)
+    Reg(h,"Button")
+
+    local b=Instance.new("TextButton",h)
+    b.Size=UDim2.new(1,0,0,36)
+    b.BackgroundTransparency=1
+    b.BorderSizePixel=0
+    b.Font=Enum.Font.Gotham
+    b.TextSize=13
+    b.TextColor3=Color3.new(1,1,1)
+    b.TextXAlignment=Enum.TextXAlignment.Left
+    b.AutoButtonColor=false
+
+    local a=Instance.new("TextLabel",b)
+    a.BackgroundTransparency=1
+    a.AnchorPoint=Vector2.new(1,.5)
+    a.Position=UDim2.new(1,-12,.5,0)
+    a.Size=UDim2.fromOffset(18,18)
+    a.Font=Enum.Font.GothamBold
+    a.Text="›"
+    a.TextSize=18
+    a.TextColor3=Color3.new(1,1,1)
+
+    local list=Instance.new("Frame",h)
+    list.Position=UDim2.fromOffset(5,38)
+    list.Size=UDim2.new(1,-10,0,0)
+    list.AutomaticSize=Enum.AutomaticSize.Y
+    list.BackgroundTransparency=1
+
+    local l=Instance.new("UIListLayout",list)
+    l.Padding=UDim.new(0,4)
+    l.SortOrder=Enum.SortOrder.LayoutOrder
+
+    local p=Instance.new("UIPadding",list)
+    p.PaddingBottom=UDim.new(0,7)
+
+    local open=false
+
+    local function refresh()
+        b.Text="  "..t..": "..current
+        tw(a,{Rotation=open and 90 or 0})
+    end
+
+    local function resize()
+        task.defer(function()
+            tw(h,{
+                Size=UDim2.new(
+                    CW,0,0,
+                    open and 38+list.AbsoluteSize.Y or 36
+                )
+            })
+            refresh()
+        end)
+    end
+
+    for _,v in ipairs(vals)do
+        local x=Instance.new("TextButton",list)
+        x.Size=UDim2.new(1,0,0,32)
+        x.BorderSizePixel=0
+        x.Font=Enum.Font.Gotham
+        x.TextSize=12
+        x.TextColor3=Color3.new(1,1,1)
+        x.TextXAlignment=Enum.TextXAlignment.Left
+        x.Text="  "..v
+        x.AutoButtonColor=false
+        x.BackgroundColor3=CT.Button
+
+        local xc=Instance.new("UICorner",x)
+        xc.CornerRadius=UDim.new(0,6)
+        Reg(x,"Button")
+
+        x.MouseButton1Click:Connect(function()
+            current=v
+            if cb then cb(v)end
+            open=false
+            resize()
+        end)
+    end
+
+    b.MouseButton1Click:Connect(function()
+        open=not open
+        resize()
+    end)
+
+    refresh()
+    return h
+end
+
+--// SIDEBAR
+local CombatButton=SideButton("Combat")
+local VisualButton=SideButton("Visual")
+local ExtraButton=SideButton("Extra")
+local SettingsButton=SideButton("Settings")
+
+local CombatPage=Page()
+local VisualPage=Page()
+local ExtraPage=Page()
+local SettingsPage=Page()
+
+local function Show(p)
+    CombatPage.Visible=false
+    VisualPage.Visible=false
+    ExtraPage.Visible=false
+    SettingsPage.Visible=false
+    p.Visible=true
+    Content.CanvasPosition=Vector2.zero
+end
+
+CombatButton.MouseButton1Click:Connect(function()Show(CombatPage)end)
+VisualButton.MouseButton1Click:Connect(function()Show(VisualPage)end)
+ExtraButton.MouseButton1Click:Connect(function()Show(ExtraPage)end)
+SettingsButton.MouseButton1Click:Connect(function()Show(SettingsPage)end)
+
+Show(CombatPage)
+
+--// COMBAT
+local LockHolder,LockDrop,RefreshLockDropdown=
+    Expand(CombatPage,"Lock On",function()
+        return " ("..S.LockOnMode..")"
+    end)
+
+local _,LockListen,LockIsListening,SetLockKey,RefreshLock=
+    Keybind(
+        LockDrop,
+        "Lock On",
+        function()return S.LockOnKey end,
+        function(k)S.LockOnKey=k end
+    )
+
+local _,RefreshLockMaster=
+    Toggle(
+        LockDrop,
+        "Master Toggle",
+        function()return S.LockOnMaster end,
+        function(v)
+            S.LockOnMaster=v
+            if not v then
+                S.LockOnEnabled=false
+                LockTarget=nil
+            end
+            RefreshLock()
+        end
+    )
+
+Dropdown(
+    LockDrop,
+    "Lock On Mode",
+    {"Camera","Character"},
+    S.LockOnMode,
+    function(v)
+        S.LockOnMode=v
+        RefreshLockDropdown()
+    end
+)
+
+local FlightHolder,FlightDrop=Expand(CombatPage,"Flight")
+
+local _,FlightListen,FlightIsListening,SetFlightKey,RefreshFlight=
+    Keybind(
+        FlightDrop,
+        "Flight",
+        function()return S.FlyKey end,
+        function(k)S.FlyKey=k end
+    )
+
+local _,RefreshFlightMaster=
+    Toggle(
+        FlightDrop,
+        "Master Toggle",
+        function()return S.FlyMaster end,
+        function(v)
+            S.FlyMaster=v
+            if not v then
+                S.Fly=false
+                local h=Hum(L.Character)
+                if h then
+                    h.PlatformStand=false
+                    h.AutoRotate=true
+                end
+            end
+            RefreshFlight()
+        end
+    )
+
+Slider(
+    FlightDrop,
+    "Flight Speed",
+    10,1000,S.FlySpeed,
+    function(v)S.FlySpeed=v end
+)
+
+--// AUTO BLACK FLASH
+local AutoBlackFlashRunning=false
+local AutoBlackFlashTarget=nil
+local AutoBlackFlashFollow=nil
+
+local function StopAutoBlackFlash()
+    AutoBlackFlashRunning=false
+    AutoBlackFlashTarget=nil
+    if AutoBlackFlashFollow then
+        pcall(function()
+            AutoBlackFlashFollow:Disconnect()
+        end)
+        AutoBlackFlashFollow=nil
+    end
+end
+
+local function GetBehindPosition(target)
+    if not Valid(target)then return end
+    local my=Root(L.Character)
+    local tr=Root(target.Character)
+    if not my or not tr then return end
+
+    local pos=tr.Position-tr.CFrame.LookVector*4
+    pos=Vector3.new(
+        pos.X,
+        tr.Position.Y,
+        pos.Z
+    )
+
+    return CFrame.lookAt(pos,tr.Position)
+end
+
+local function MouseClick()
+    local ok=false
+
+    pcall(function()
+        if mouse1click then
+            mouse1click()
+            ok=true
+        end
+    end)
+
+    if ok then return true end
+
+    pcall(function()
+        VIM:SendMouseButtonEvent(
+            0,0,0,true,game,0
+        )
+        VIM:SendMouseButtonEvent(
+            0,0,0,false,game,0
+        )
+        ok=true
+    end)
+
+    return ok
+end
+
+local function BlackFlashInput()
+    local ok=false
+
+    pcall(function()
+        VIM:SendMouseButtonEvent(
+            0,0,0,true,game,0
+        )
+        task.wait(.02)
+        VIM:SendMouseButtonEvent(
+            0,0,0,false,game,0
+        )
+        ok=true
+    end)
+
+    if not ok then
+        pcall(function()
+            local vu=game:GetService("VirtualUser")
+            vu:CaptureController()
+            vu:ClickButton1(Vector2.new())
+            ok=true
+        end)
+    end
+
+    return ok
+end
+
+local function BlackFlashWindow(c)
+    if not c then return false end
+
+    if c:GetAttribute("BlackFlashWindow")==true then
+        return true
+    end
+
+    for _,d in ipairs(c:GetDescendants())do
+        if d:IsA("Animator")then
+            for _,track in ipairs(d:GetPlayingAnimationTracks())do
+                local a=track.Animation
+                if a then
+                    local n=string.lower(a.Name or "")
+                    if string.find(n,"blackflash",1,true)then
+                        return true
+                    end
+                end
+            end
+        end
+    end
+
+    return false
+end
+
+local BlackFlashLastPulse=0
+local BlackFlashDebounce=.9
+
+local function StartAutoBlackFlash(target)
+    if not S.AutoBlackFlash then return end
+    if not Valid(target)then return end
+
+    StopAutoBlackFlash()
+
+    AutoBlackFlashRunning=true
+    AutoBlackFlashTarget=target
+
+    local root=Root(L.Character)
+    if not root then
+        StopAutoBlackFlash()
+        return
+    end
+
+    local targetCF=GetBehindPosition(target)
+
+    if targetCF then
+        local start=root.CFrame
+        local elapsed=0
+        local duration=.08
+
+        task.spawn(function()
+            while AutoBlackFlashRunning
+                and AutoBlackFlashTarget==target
+                and Valid(target)
+                and root.Parent
+                and elapsed<duration
+            do
+                task.wait()
+
+                if not root.Parent then
+                    StopAutoBlackFlash()
+                    return
+                end
+
+                targetCF=GetBehindPosition(target)
+
+                if not targetCF then
+                    StopAutoBlackFlash()
+                    return
+                end
+
+                elapsed+=.016
+
+                local a=math.clamp(
+                    elapsed/duration,
+                    0,1
+                )
+
+                a=1-(1-a)^3
+
+                root.CFrame=start:Lerp(
+                    targetCF,
+                    a
+                )
+            end
+
+            if AutoBlackFlashRunning
+                and AutoBlackFlashTarget==target
+                and Valid(target)
+            then
+                local finalCF=GetBehindPosition(target)
+                if finalCF and root.Parent then
+                    root.CFrame=finalCF
+                end
+            end
+        end)
+    end
+
+    AutoBlackFlashFollow=R.RenderStepped:Connect(function()
+        if not AutoBlackFlashRunning then
+            return
+        end
+
+        if not Valid(AutoBlackFlashTarget)then
+            StopAutoBlackFlash()
+            return
+        end
+
+        local r=Root(L.Character)
+        local targetCF=GetBehindPosition(
+            AutoBlackFlashTarget
+        )
+
+        if not r or not targetCF then
+            StopAutoBlackFlash()
+            return
+        end
+
+        local d=(r.Position-targetCF.Position).Magnitude
+
+        if d>1 then
+            r.CFrame=r.CFrame:Lerp(
+                targetCF,
+                .3
+            )
+        end
+    end)
+
+    task.spawn(function()
+        task.wait(.1)
+
+        if not AutoBlackFlashRunning
+            or AutoBlackFlashTarget~=target
+            or not S.AutoBlackFlash
+            or not Valid(target)
+        then
+            return
+        end
+
+        local r=Root(L.Character)
+        local cf=GetBehindPosition(target)
+
+        if r and cf then
+            r.CFrame=cf
+        end
+
+        task.wait()
+
+        if not AutoBlackFlashRunning
+            or AutoBlackFlashTarget~=target
+            or not S.AutoBlackFlash
+            or not Valid(target)
+        then
+            return
+        end
+
+        MouseClick()
+
+        task.wait(.35)
+
+        if AutoBlackFlashTarget==target then
+            StopAutoBlackFlash()
+        end
+    end)
+end
+
+local BlackHolder,BlackDrop,RefreshBlackDropdown=
+    Expand(CombatPage,"Auto Black Flash")
+
+local _,BlackListen,BlackIsListening,SetBlackKey,RefreshBlack=
+    Keybind(
+        BlackDrop,
+        "Auto Black Flash",
+        function()return S.AutoBlackFlashKey end,
+        function(k)S.AutoBlackFlashKey=k end
+    )
+
+local _,RefreshBlackMaster=
+    Toggle(
+        BlackDrop,
+        "Master Toggle",
+        function()return S.AutoBlackFlash end,
+        function(v)
+            S.AutoBlackFlash=v
+            if not v then
+                StopAutoBlackFlash()
+            end
+            RefreshBlack()
+        end
+    )
+
+--// HITBOX
+local HitHolder,HitInner=Expand(CombatPage,"Hitbox Expander")
+
+Toggle(
+    HitInner,
+    "Enabled",
+    function()return S.HitboxExpander end,
+    function(v)S.HitboxExpander=v end
+)
+
+Slider(
+    HitInner,
+    "Hitbox Size",
+    1,20,S.HitboxSize,
+    function(v)S.HitboxSize=v end
+)
+
+--// HIGURUMA / DEFENSE ATTORNEY
+Toggle(
+    CombatPage,
+    "Higuruma QTE",
+    function()return S.HigurumaQTE end,
+    function(v)S.HigurumaQTE=v end
+)
+
+Toggle(
+    CombatPage,
+    "Auto Counter",
+    function()return S.AutoCounter end,
+    function(v)S.AutoCounter=v end
+)
+
+Toggle(
+    CombatPage,
+    "Auto Block",
+    function()return S.AutoBlock end,
+    function(v)S.AutoBlock=v end
+)
+
+--// ANTI-STUN
+local _,RefreshAntiStun=
+    Toggle(
+        CombatPage,
+        "Anti-Stun",
+        function()return S.AntiStun end,
+        function(v)
+            S.AntiStun=v
+
+            if not v then
+                local h=Hum(L.Character)
+                if h then
+                    pcall(function()
+                        h.PlatformStand=false
+                        h.Sit=false
+                    end)
+                end
+            end
+
+            RefreshAntiStun()
+        end
+    )
+
+--// KILL
+local KillHolder,KillDrop,RefreshKillDropdown=
+    Expand(CombatPage,"Kill")
+
+local _,KillListen,KillIsListening,SetKillKey,RefreshKill=
+    Keybind(
+        KillDrop,
+        "Kill",
+        function()return S.KillKey end,
+        function(k)S.KillKey=k end
+    )
+
+local _,RefreshKillMaster=
+    Toggle(
+        KillDrop,
+        "Master Toggle",
+        function()return S.KillMaster end,
+        function(v)
+            S.KillMaster=v
+            if not v then
+                S.KillActive=false
+                KillTarget=nil
+            end
+            RefreshKill()
+        end
+    )
+
+--// EXTRA / BRING ITEMS
+local Allowed={
+    ["Bowling Ball"]=true,
+    ["Naginata"]=true,
+    ["Banana Peel"]=true,
+    ["TNT"]=true,
+    ["Tinted Glasses"]=true,
+    ["Transfigured Human"]=true,
+    ["Sniper"]=true,
+    ["Hazenoki's Eye"]=true,
+    ["Voice Recorder"]=true,
+    ["Transfigured Flesh"]=true,
+    ["Playful Cloud"]=true,
+    ["Gun"]=true,
+    ["Jet Black"]=true,
+    ["Coin"]=true,
+    ["Soda"]=true
+}
+
+local ItemNames={
+    "Bowling Ball",
+    "Naginata",
+    "Banana Peel",
+    "TNT",
+    "Tinted Glasses",
+    "Transfigured Human",
+    "Sniper",
+    "Hazenoki's Eye",
+    "Voice Recorder",
+    "Transfigured Flesh",
+    "Playful Cloud",
+    "Gun",
+    "Jet Black",
+    "Coin",
+    "Soda"
+}
+
+local function IsPlayerPart(o)
+    if not o then return true end
+
+    for _,p in ipairs(P:GetPlayers())do
+        if p.Character and o:IsDescendantOf(p.Character)then
+            return true
+        end
+    end
+
+    return false
+end
+
+local function ItemRoot(o)
+    if not o then return end
+
+    if o:IsA("BasePart")then
+        return o
+    end
+
+    if o:IsA("Tool")then
+        return o:FindFirstChild("Handle")or
+            o:FindFirstChildWhichIsA("BasePart",true)
+    end
+
+    if o:IsA("Model")then
+        return o.PrimaryPart or
+            o:FindFirstChildWhichIsA("BasePart",true)
+    end
+end
+
+local function ItemContainer(o)
+    if not o or IsPlayerPart(o)then return end
+
+    if(
+        (o:IsA("Model")or o:IsA("Tool"))
+        and Allowed[o.Name]
+        and ItemRoot(o)
+    )then
+        return o
+    end
+
+    local x=o
+
+    while x and x~=W do
+        if(
+            (x:IsA("Model")or x:IsA("Tool"))
+            and Allowed[x.Name]
+            and ItemRoot(x)
+            and not IsPlayerPart(x)
+        )then
+            return x
+        end
+
+        x=x.Parent
+    end
+
+    if o:IsA("BasePart")and Allowed[o.Name]then
+        return o
+    end
+end
+
+local function MoveItem(o,pos)
+    o=ItemContainer(o)or o
+
+    if not o or not o.Parent or IsPlayerPart(o)then
+        return false
+    end
+
+    local r=ItemRoot(o)
+    if not r then return false end
+
+    return pcall(function()
+        if o:IsA("Model")then
+            o:PivotTo(CFrame.new(pos))
+        else
+            r.CFrame=CFrame.new(pos)
+        end
+    end)
+end
+
+local function GetItems(name)
+    local found,seen={},{}
+
+    for _,o in ipairs(W:GetDescendants())do
+        local x=ItemContainer(o)
+
+        if x
+            and(not name or x.Name==name)
+            and not seen[x]
+        then
+            seen[x]=true
+            found[#found+1]=x
+        end
+    end
+
+    return found
+end
+
+local function BringOne(name)
+    local r=Root(L.Character)
+    if not r then return end
+
+    local best,bd=nil,math.huge
+
+    for _,o in ipairs(GetItems(name))do
+        local x=ItemRoot(o)
+
+        if x then
+            local d=(x.Position-r.Position).Magnitude
+
+            if d<bd then
+                bd=d
+                best=o
+            end
+        end
+    end
+
+    if best then
+        MoveItem(
+            best,
+            r.Position+
+            r.CFrame.LookVector*3+
+            Vector3.new(0,1,0)
+        )
+    end
+end
+
+local function BringAll()
+    local r=Root(L.Character)
+    if not r then return end
+
+    for i,o in ipairs(GetItems())do
+        local n=i-1
+        local ang=(n%12)/12*math.pi*2
+        local rad=3+math.floor(n/12)*2
+
+        MoveItem(
+            o,
+            r.Position+
+            Vector3.new(
+                math.cos(ang)*rad,
+                1+math.floor(n/36)*2,
+                math.sin(ang)*rad
+            )
+        )
+    end
+end
+
+local function ActionButton(par,t,fn)
+    local b=Instance.new("TextButton",par)
+    b.Size=UDim2.new(CW,0,0,34)
+    b.BorderSizePixel=0
+    b.BackgroundColor3=CT.Button
+    b.Font=Enum.Font.Gotham
+    b.TextSize=13
+    b.TextColor3=CT.Text
+    b.TextXAlignment=Enum.TextXAlignment.Left
+    b.AutoButtonColor=false
+    b.Text="  "..t
+
+    local c=Instance.new("UICorner",b)
+    c.CornerRadius=UDim.new(0,7)
+
+    Reg(b,"Button")
+    b.MouseButton1Click:Connect(fn)
+
+    return b
+end
+
+local BringHolder,BringInner=Expand(ExtraPage,"Bring Items")
+
+ActionButton(
+    BringInner,
+    "Bring Item",
+    function()
+        BringOne(S.BringItem)
+    end
+)
+
+Dropdown(
+    BringInner,
+    "Item",
+    ItemNames,
+    S.BringItem,
+    function(v)
+        S.BringItem=v
+    end
+)
+
+ActionButton(
+    BringInner,
+    "Bring All",
+    BringAll
+)
+
+--// SETTINGS
+local ThemeHolder=Instance.new("Frame",SettingsPage)
+ThemeHolder.Size=UDim2.new(CW,0,0,36)
+ThemeHolder.BackgroundColor3=CT.Button
+ThemeHolder.BorderSizePixel=0
+ThemeHolder.ClipsDescendants=true
+
+local thc=Instance.new("UICorner",ThemeHolder)
+thc.CornerRadius=UDim.new(0,7)
+Reg(ThemeHolder,"Button")
+
+local ThemeButton=Instance.new("TextButton",ThemeHolder)
+ThemeButton.Size=UDim2.new(1,0,0,36)
+ThemeButton.BackgroundTransparency=1
+ThemeButton.BorderSizePixel=0
+ThemeButton.Font=Enum.Font.Gotham
+ThemeButton.TextSize=13
+ThemeButton.TextColor3=Color3.new(1,1,1)
+ThemeButton.TextXAlignment=Enum.TextXAlignment.Left
+ThemeButton.AutoButtonColor=false
+
+local ThemeArrow=Instance.new("TextLabel",ThemeButton)
+ThemeArrow.BackgroundTransparency=1
+ThemeArrow.AnchorPoint=Vector2.new(1,.5)
+ThemeArrow.Position=UDim2.new(1,-12,.5,0)
+ThemeArrow.Size=UDim2.fromOffset(18,18)
+ThemeArrow.Font=Enum.Font.GothamBold
+ThemeArrow.Text="›"
+ThemeArrow.TextSize=18
+ThemeArrow.TextColor3=Color3.new(1,1,1)
+
+local ThemeList=Instance.new("Frame",ThemeHolder)
+ThemeList.Position=UDim2.fromOffset(5,38)
+ThemeList.Size=UDim2.new(1,-10,0,0)
+ThemeList.AutomaticSize=Enum.AutomaticSize.Y
+ThemeList.BackgroundTransparency=1
+
+local tl=Instance.new("UIListLayout",ThemeList)
+tl.Padding=UDim.new(0,4)
+tl.SortOrder=Enum.SortOrder.LayoutOrder
+
+local tp=Instance.new("UIPadding",ThemeList)
+tp.PaddingBottom=UDim.new(0,7)
+
+local ThemeOpen=false
+
+local function RefreshTheme()
+    ThemeButton.Text="  Themes ("..S.Theme..")"
+    tw(ThemeArrow,{Rotation=ThemeOpen and 90 or 0})
+end
+
+local function ResizeTheme()
+    task.defer(function()
+        tw(
+            ThemeHolder,
+            {
+                Size=UDim2.new(
+                    CW,0,0,
+                    ThemeOpen and 38+ThemeList.AbsoluteSize.Y or 36
+                )
+            }
+        )
+        RefreshTheme()
+    end)
+end
+
+for _,name in ipairs({"Midnight"})do
+    local b=Instance.new("TextButton",ThemeList)
+    b.Size=UDim2.new(1,0,0,32)
+    b.BorderSizePixel=0
+    b.Font=Enum.Font.Gotham
+    b.TextSize=12
+    b.TextColor3=Color3.new(1,1,1)
+    b.TextXAlignment=Enum.TextXAlignment.Left
+    b.Text="  "..name
+    b.AutoButtonColor=false
+    b.BackgroundColor3=CT.Button
+
+    local c=Instance.new("UICorner",b)
+    c.CornerRadius=UDim.new(0,6)
+
+    Reg(b,"Button")
+
+    b.MouseButton1Click:Connect(function()
+        S.Theme=name
+        Theme()
+        RefreshLock()
+        RefreshLockMaster()
+        RefreshLockDropdown()
+        RefreshFlight()
+        RefreshFlightMaster()
+        RefreshBlack()
+        RefreshBlackMaster()
+        RefreshKill()
+        RefreshKillMaster()
+        RefreshTheme()
+        ThemeOpen=false
+        ResizeTheme()
+    end)
+end
+
+ThemeButton.MouseButton1Click:Connect(function()
+    ThemeOpen=not ThemeOpen
+    ResizeTheme()
+end)
+
+RefreshTheme()
+
+--// WINDOW
+local FW,FH=720,520
+local MinW,MinH=560,380
+local FullSize=UDim2.fromOffset(FW,FH)
+local MiniSize=UDim2.fromOffset(FW,52)
+
+local function Clamp()
+    local cam=W.CurrentCamera
+    if not cam then return end
+
+    local v=cam.ViewportSize
+    local w,h=M.AbsoluteSize.X,M.AbsoluteSize.Y
+    local x,y=M.AbsolutePosition.X,M.AbsolutePosition.Y
+
+    M.Position=UDim2.fromOffset(
+        math.clamp(x,0,math.max(0,v.X-w)),
+        math.clamp(y,0,math.max(0,v.Y-h))
+    )
+end
+
+Min.MouseButton1Click:Connect(function()
+    if S.MenuCondensed then
+        S.MenuCondensed=false
+        Body.Visible=true
+        tw(M,{Size=FullSize})
+    else
+        S.MenuCondensed=true
+        Body.Visible=true
+
+        local x=tw(M,{Size=MiniSize})
+
+        if x then
+            x.Completed:Connect(function()
+                if S.MenuCondensed and M.Parent then
+                    Body.Visible=false
+                end
+            end)
+        else
+            Body.Visible=false
+        end
+    end
+end)
+
+Close.MouseButton1Click:Connect(function()
+    S.MenuVisible=false
+    M.Visible=false
+end)
+
+local dragging=false
+local ds,dp
+
+Top.InputBegan:Connect(function(i)
+    if i.UserInputType~=Enum.UserInputType.MouseButton1 then return end
+
+    local x=i.Position.X
+
+    if(
+        x>=Min.AbsolutePosition.X and
+        x<=Min.AbsolutePosition.X+Min.AbsoluteSize.X
+    )or(
+        x>=Close.AbsolutePosition.X and
+        x<=Close.AbsolutePosition.X+Close.AbsoluteSize.X
+    )then
+        return
+    end
+
+    dragging=true
+    ds=i.Position
+    dp=M.Position
+end)
+
+U.InputChanged:Connect(function(i)
+    if dragging and i.UserInputType==Enum.UserInputType.MouseMovement then
+        local d=i.Position-ds
+
+        M.Position=UDim2.new(
+            dp.X.Scale,dp.X.Offset+d.X,
+            dp.Y.Scale,dp.Y.Offset+d.Y
+        )
+
+        Clamp()
+    end
+end)
+
+U.InputEnded:Connect(function(i)
+    if i.UserInputType==Enum.UserInputType.MouseButton1 then
+        dragging=false
+    end
+end)
+
+local function RH(n,p,s)
+    local h=Instance.new("TextButton",M)
+    h.Name=n
+    h.Text=""
+    h.BackgroundTransparency=1
+    h.BorderSizePixel=0
+    h.AutoButtonColor=false
+    h.Position=p
+    h.Size=s
+    h.ZIndex=100
+    return h
+end
+
+local RR=RH(
+    "ResizeRight",
+    UDim2.new(1,-6,0,10),
+    UDim2.new(0,12,1,-20)
+)
+
+local RB=RH(
+    "ResizeBottom",
+    UDim2.new(0,10,1,-6),
+    UDim2.new(1,-20,0,12)
+)
+
+local RBR=RH(
+    "ResizeBottomRight",
+    UDim2.new(1,-18,1,-18),
+    UDim2.fromOffset(18,18)
+)
+
+local RBL=RH(
+    "ResizeBottomLeft",
+    UDim2.new(0,0,1,-18),
+    UDim2.fromOffset(18,18)
+)
+
+local RL=RH(
+    "ResizeLeft",
+    UDim2.fromOffset(0,10),
+    UDim2.new(0,12,1,-20)
+)
+
+local rm,rsz,rpos,resizeMouseX,resizeMouseY
+
+local function BeginResize(mode)
+    if S.MenuCondensed then return end
+
+    rm=mode
+    rsz=M.AbsoluteSize
+    rpos=M.AbsolutePosition
+
+    local q=U:GetMouseLocation()
+    resizeMouseX=q.X
+    resizeMouseY=q.Y
+end
+
+RR.MouseButton1Down:Connect(function()BeginResize("Right")end)
+RB.MouseButton1Down:Connect(function()BeginResize("Bottom")end)
+RBR.MouseButton1Down:Connect(function()BeginResize("BottomRight")end)
+RBL.MouseButton1Down:Connect(function()BeginResize("BottomLeft")end)
+RL.MouseButton1Down:Connect(function()BeginResize("Left")end)
+
+U.InputChanged:Connect(function(i)
+    if not rm or i.UserInputType~=Enum.UserInputType.MouseMovement then
+        return
+    end
+
+    local cur=i.Position
+    local dx=cur.X-resizeMouseX
+    local dy=cur.Y-resizeMouseY
+
+    local nw,nh=rsz.X,rsz.Y
+    local nx,ny=rpos.X,rpos.Y
+
+    if rm=="Right" then
+        nw=rsz.X+dx
+    elseif rm=="Bottom" then
+        nh=rsz.Y+dy
+    elseif rm=="BottomRight" then
+        nw=rsz.X+dx
+        nh=rsz.Y+dy
+    elseif rm=="Left" then
+        nw=rsz.X-dx
+        nx=rpos.X+dx
+    elseif rm=="BottomLeft" then
+        nw=rsz.X-dx
+        nh=rsz.Y+dy
+        nx=rpos.X+dx
+    end
+
+    nw=math.max(MinW,nw)
+    nh=math.max(MinH,nh)
+
+    local cam=W.CurrentCamera
+
+    if cam then
+        local v=cam.ViewportSize
+
+        nw=math.min(nw,v.X)
+        nh=math.min(nh,v.Y)
+
+        nx=math.clamp(
+            nx,
+            0,
+            math.max(0,v.X-nw)
+        )
+
+        ny=math.clamp(
+            ny,
+            0,
+            math.max(0,v.Y-nh)
+        )
+    end
+
+    M.Position=UDim2.fromOffset(nx,ny)
+    M.Size=UDim2.fromOffset(nw,nh)
+end)
+
+U.InputEnded:Connect(function(i)
+    if i.UserInputType==Enum.UserInputType.MouseButton1 then
+        rm=nil
+    end
+end)
+
+U.InputBegan:Connect(function(i,p)
+    if p or i.KeyCode~=Enum.KeyCode.RightShift then return end
+
+    if S.MenuVisible then
+        S.MenuVisible=false
+        M.Visible=false
+    else
+        S.MenuVisible=true
+        S.MenuCondensed=false
+        M.Visible=true
+        Body.Visible=true
+        M.Size=MiniSize
+        tw(M,{Size=FullSize})
+    end
+end)
+
+--// TARGET TRACKING
+local Touch={}
+
+local function ClearTouch()
+    for _,c in ipairs(Touch)do
+        pcall(function()c:Disconnect()end)
+    end
+    table.clear(Touch)
+end
+
+local function Track(c)
+    if not c then return end
+
+    ClearTouch()
+
+    local function add(x)
+        if x:IsA("BasePart")then
+            table.insert(
+                Touch,
+                x.Touched:Connect(function(hit)
+                    local p=FindPlayer(hit)
+
+                    if p and Valid(p)then
+                        LastTarget=p
+                    end
+                end)
+            )
+        end
+    end
+
+    for _,x in ipairs(c:GetDescendants())do
+        add(x)
+    end
+
+    table.insert(
+        Touch,
+        c.DescendantAdded:Connect(add)
+    )
+end
+
+if L.Character then
+    task.defer(function()
+        Track(L.Character)
+    end)
+end
+
+L.CharacterAdded:Connect(function(c)
+    LastTarget=nil
+    task.wait(.1)
+
+    if c.Parent then
+        Track(c)
+    end
+end)
+
+local function Closest()
+    local cam=W.CurrentCamera
+    if not cam then return end
+
+    local center=cam.ViewportSize/2
+    local best,bd=nil,math.huge
+
+    for _,p in ipairs(P:GetPlayers())do
+        if Valid(p)then
+            local q,on=cam:WorldToViewportPoint(
+                Root(p.Character).Position
+            )
+
+            if on then
+                local d=(
+                    Vector2.new(q.X,q.Y)-center
+                ).Magnitude
+
+                if d<bd then
+                    bd=d
+                    best=p
+                end
+            end
+        end
+    end
+
+    return best
+end
+
+--// KEYBINDS
+U.InputBegan:Connect(function(i,p)
+    if p or i.UserInputType~=Enum.UserInputType.Keyboard then
+        return
+    end
+
+    local k=i.KeyCode
+
+    if LockIsListening()then
+        if k~=Enum.KeyCode.Unknown then
+            SetLockKey(k)
+        end
+        return
+    end
+
+    if FlightIsListening()then
+        if k~=Enum.KeyCode.Unknown then
+            SetFlightKey(k)
+        end
+        return
+    end
+
+    if BlackIsListening()then
+        if k~=Enum.KeyCode.Unknown then
+            SetBlackKey(k)
+        end
+        return
+    end
+
+    if KillIsListening()then
+        if k~=Enum.KeyCode.Unknown then
+            SetKillKey(k)
+        end
+        return
+    end
+
+    if k==S.FlyKey and S.FlyMaster then
+        S.Fly=not S.Fly
+        RefreshFlight()
+    end
+
+    if k==S.LockOnKey and S.LockOnMaster then
+        if S.LockOnEnabled then
+            S.LockOnEnabled=false
+            LockTarget=nil
+        else
+            local t=Closest()
+
+            if t and Valid(t)then
+                LockTarget=t
+                S.LockOnEnabled=true
+            end
+        end
+
+        RefreshLock()
+    end
+
+    if k==S.KillKey and S.KillMaster then
+        if S.KillActive then
+            S.KillActive=false
+            KillTarget=nil
+        else
+            local t=LastTarget
+
+            if t and Valid(t)then
+                KillTarget=t
+                S.KillActive=true
+            else
+                KillTarget=nil
+                S.KillActive=false
+            end
+        end
+
+        RefreshKill()
+    end
+end)
+
+--// AUTO BLACK FLASH KEY
+U.InputBegan:Connect(function(i,p)
+    if p then return end
+    if i.UserInputType~=Enum.UserInputType.Keyboard then
+        return
+    end
+
+    if i.KeyCode~=S.AutoBlackFlashKey then
+        return
+    end
+
+    if not S.AutoBlackFlash then
+        return
+    end
+
+    local target=LastTarget
+
+    if not target or not Valid(target)then
+        target=Closest()
+    end
+
+    if target and Valid(target)then
+        StartAutoBlackFlash(target)
+    end
+end)
+
+--// AUTO BLACK FLASH WINDOW DETECTOR
+R.Heartbeat:Connect(function()
+    if not S.AutoBlackFlash then return end
+
+    if tick()-BlackFlashLastPulse<BlackFlashDebounce then
+        return
+    end
+
+    local c=L.Character
+    if not c then return end
+
+    if BlackFlashWindow(c)then
+        BlackFlashLastPulse=tick()
+
+        if not AutoBlackFlashRunning then
+            BlackFlashInput()
+        end
+    end
+
+    if _G.AlastxrBlackFlash then
+        _G.AlastxrBlackFlash=nil
+        BlackFlashLastPulse=tick()
+        BlackFlashInput()
+    end
+end)
+
+--// FLIGHT
+R:UnbindFromRenderStep("AlastxrFlight")
+R:UnbindFromRenderStep("AlastxrFlightVelocity")
+
+local PrevFly=false
+
+local function FlightState(active)
+    local c=L.Character
+    local h=Hum(c)
+    local r=Root(c)
+
+    if not h then return end
+
+    if active then
+        h.PlatformStand=true
+        h.AutoRotate=false
+    else
+        h.PlatformStand=false
+        h.AutoRotate=true
+
+        if r then
+            r.AssemblyLinearVelocity=Vector3.zero
+            r.AssemblyAngularVelocity=Vector3.zero
+        end
+    end
+end
+
+local function FlightReady()
+    if not(S.FlyMaster and S.Fly)then
+        if PrevFly then
+            FlightState(false)
+            PrevFly=false
+        end
+
+        return
+    end
+
+    local c=L.Character
+    local h=Hum(c)
+    local r=Root(c)
+    local cam=W.CurrentCamera
+
+    if not c or not h or not r or not cam or h.Health<=0 then
+        return
+    end
+
+    if not PrevFly then
+        FlightState(true)
+        PrevFly=true
+    end
+
+    return c,h,r,cam
+end
+
+R:BindToRenderStep(
+    "AlastxrFlight",
+    Enum.RenderPriority.Camera.Value+50,
+    function()
+        local c,h,r,cam=FlightReady()
+        if not c then return end
+
+        local look=cam.CFrame.LookVector
+
+        if not(
+            S.LockOnMaster
+            and S.LockOnEnabled
+            and S.LockOnMode=="Character"
+            and Valid(LockTarget)
+        )then
+            local flatLook=Vector3.new(
+                look.X,
+                0,
+                look.Z
+            )
+
+            if flatLook.Magnitude>.001 then
+                r.CFrame=CFrame.lookAt(
+                    r.Position,
+                    r.Position+flatLook.Unit
+                )
+            end
+        end
+
+        r.AssemblyAngularVelocity=Vector3.zero
+    end
+)
+
+R:BindToRenderStep(
+    "AlastxrFlightVelocity",
+    Enum.RenderPriority.Last.Value,
+    function()
+        local c,h,r,cam=FlightReady()
+        if not c then return end
+
+        local look=cam.CFrame.LookVector
+        local right=cam.CFrame.RightVector
+        local d=Vector3.zero
+
+        if U:IsKeyDown(Enum.KeyCode.W)then
+            d+=look
+        end
+
+        if U:IsKeyDown(Enum.KeyCode.S)then
+            d-=look
+        end
+
+        if U:IsKeyDown(Enum.KeyCode.D)then
+            d+=right
+        end
+
+        if U:IsKeyDown(Enum.KeyCode.A)then
+            d-=right
+        end
+
+        if d.Magnitude>0 then
+            r.AssemblyLinearVelocity=
+                d.Unit*S.FlySpeed
+        else
+            r.AssemblyLinearVelocity=
+                Vector3.zero
+        end
+
+        r.AssemblyAngularVelocity=
+            Vector3.zero
+    end
+)
+
+L.CharacterAdded:Connect(function()
+    PrevFly=false
+    StopAutoBlackFlash()
+end)
+
+--// STRONG LOCK ON
+R:BindToRenderStep(
+    "AlastxrStrongLock",
+    Enum.RenderPriority.Camera.Value+100,
+    function()
+        if not(S.LockOnMaster and S.LockOnEnabled)then
+            local h=Hum(L.Character)
+
+            if h and not S.Fly then
+                h.AutoRotate=true
+            end
+
+            return
+        end
+
+        if not Valid(LockTarget)then
+            S.LockOnEnabled=false
+            LockTarget=nil
+            RefreshLock()
+
+            local h=Hum(L.Character)
+
+            if h and not S.Fly then
+                h.AutoRotate=true
+            end
+
+            return
+        end
+
+        local tr=Root(LockTarget.Character)
+        local my=Root(L.Character)
+        local cam=W.CurrentCamera
+
+        if not tr then return end
+
+        if S.LockOnMode=="Camera"then
+            if cam then
+                cam.CFrame=CFrame.lookAt(
+                    cam.CFrame.Position,
+                    tr.Position
+                )
+            end
+        else
+            local h=Hum(L.Character)
+
+            if h then
+                h.AutoRotate=false
+            end
+
+            if my then
+                local pos=Vector3.new(
+                    tr.Position.X,
+                    my.Position.Y,
+                    tr.Position.Z
+                )
+
+                if(pos-my.Position).Magnitude>.001 then
+                    my.CFrame=CFrame.lookAt(
+                        my.Position,
+                        pos
+                    )
+                end
+
+                my.AssemblyAngularVelocity=
+                    Vector3.zero
+            end
+        end
+    end
+)
+
+--// KILL
+R.Heartbeat:Connect(function()
+    if not S.KillActive then return end
+
+    if not KillTarget then
+        S.KillActive=false
+        RefreshKill()
+        return
+    end
+
+    if KillTarget.Parent~=P
+        or not Valid(KillTarget)
+    then
+        KillTarget=nil
+        S.KillActive=false
+        RefreshKill()
+        return
+    end
+
+    local my,tr=
+        Root(L.Character),
+        Root(KillTarget.Character)
+
+    if not my or not tr then return end
+
+    local pos=
+        tr.Position-
+        tr.CFrame.LookVector*4
+
+    pos=Vector3.new(
+        pos.X,
+        tr.Position.Y,
+        pos.Z
+    )
+
+    my.CFrame=CFrame.lookAt(
+        pos,
+        tr.Position
+    )
+
+    my.AssemblyLinearVelocity=
+        Vector3.zero
+
+    my.AssemblyAngularVelocity=
+        Vector3.zero
+end)
+
+--// ANTI-STUN ENGINE
+local AntiStunHooked=false
+local OldNewIndex
+
+pcall(function()
+    if hookmetamethod and newcclosure then
+        OldNewIndex=hookmetamethod(
+            game,
+            "__newindex",
+            newcclosure(function(self,key,value)
+                if S.AntiStun then
+                    pcall(function()
+                        local c=L.Character
+                        local h=Hum(c)
+                        local r=Root(c)
+
+                        if h and self==h then
+                            if key=="WalkSpeed" then
+                                if typeof(value)=="number"
+                                    and value<16
+                                then
+                                    value=16
+                                end
+
+                            elseif key=="JumpPower" then
+                                if typeof(value)=="number"
+                                    and value<50
+                                then
+                                    value=50
+                                end
+
+                            elseif key=="UseJumpPower" then
+                                value=true
+
+                            elseif key=="PlatformStand" then
+                                if S.FlyMaster and S.Fly then
+                                    value=true
+                                else
+                                    value=false
+                                end
+
+                            elseif key=="Sit" then
+                                if S.FlyMaster and S.Fly then
+                                    value=true
+                                else
+                                    value=false
+                                end
+                            end
+                        end
+
+                        if r
+                            and self==r
+                            and key=="Anchored"
+                        then
+                            if S.FlyMaster and S.Fly then
+                                value=false
+                            else
+                                value=false
+                            end
+                        end
+                    end)
+                end
+
+                return OldNewIndex(
+                    self,
+                    key,
+                    value
+                )
+            end)
+        )
+
+        AntiStunHooked=OldNewIndex~=nil
+    end
+end)
+
+R.Heartbeat:Connect(function()
+    if not S.AntiStun then
+        return
+    end
+
+    local c=L.Character
+    local h=Hum(c)
+    local r=Root(c)
+
+    if not h or not r or h.Health<=0 then
+        return
+    end
+
+    pcall(function()
+        h.WalkSpeed=16
+        h.JumpPower=50
+        h.UseJumpPower=true
+
+        -- IMPORTANT:
+        -- Flight is allowed to keep PlatformStand=true.
+        -- Anti-Stun no longer fights the Flight system.
+        if S.FlyMaster and S.Fly then
+            h.PlatformStand=true
+            h.Sit=true
+            h.AutoRotate=false
+        else
+            h.PlatformStand=false
+            h.Sit=false
+            r.Anchored=false
+        end
+    end)
+end)
+
+--// AUTO BLOCK
+do
+    local BLOCK_KEY=Enum.KeyCode.F
+    local blockHeld=false
+    local lastRelease=0
+    local HOLD_TIME=.35
+
+    local function UnderAttack()
+        local char=L.Character
+        if not char then return false end
+
+        local hum=Hum(char)
+        if not hum then return false end
+
+        local st=hum:GetState()
+
+        if st==Enum.HumanoidStateType.Ragdoll
+            or st==Enum.HumanoidStateType.FallingDown
+        then
+            return true
+        end
+
+        for _,a in ipairs({
+            "Stunned",
+            "HitStun",
+            "Attacking",
+            "Combat"
+        })do
+            if char:GetAttribute(a)==true
+                or hum:GetAttribute(a)==true
+            then
+                return true
+            end
+        end
+
+        local lastHP=_G._AlastxrLastHP
+
+        if lastHP
+            and hum.Health<lastHP
+        then
+            return true
+        end
+
+        if hum.Health<hum.MaxHealth*.99 then
+            return true
+        end
+
+        return false
+    end
+
+    local function HoldBlock()
+        if blockHeld then return end
+
+        blockHeld=true
+
+        pcall(function()
+            VIM:SendKeyEvent(
+                true,
+                BLOCK_KEY,
+                false,
+                game
+            )
+        end)
+
+        pcall(function()
+            local vu=game:GetService("VirtualUser")
+            vu:CaptureController()
+            vu:ClickButton2(Vector2.new())
+        end)
+    end
+
+    local function ReleaseBlock()
+        if not blockHeld then return end
+
+        blockHeld=false
+        lastRelease=tick()
+
+        pcall(function()
+            VIM:SendKeyEvent(
+                false,
+                BLOCK_KEY,
+                false,
+                game
+            )
+        end)
+    end
+
+    R.Heartbeat:Connect(function()
+        local hum=L.Character and Hum(L.Character)
+
+        if hum then
+            _G._AlastxrLastHP=hum.Health
+        end
+
+        if not S.AutoBlock then
+            if blockHeld then
+                ReleaseBlock()
+            end
+            return
+        end
+
+        if tick()-lastRelease<.15 then
+            return
+        end
+
+        if UnderAttack()then
+            HoldBlock()
+        end
+
+        if blockHeld
+            and tick()-lastRelease>HOLD_TIME
+        then
+            ReleaseBlock()
+        end
+    end)
+end
+
+--// AUTO COUNTER
+do
+    local COUNTER_WINDOW=.12
+    local COUNTER_COOLDOWN=.55
+    local lastCounter={}
+
+    local function AttackersNow()
+        local result={}
+        local myRoot=Root(L.Character)
+
+        if not myRoot then
+            return result
+        end
+
+        for _,p in ipairs(P:GetPlayers())do
+            if p~=L and p.Character then
+                local h=Hum(p.Character)
+                local r=Root(p.Character)
+
+                if h and r and h.Health>0 then
+                    local d=(r.Position-myRoot.Position).Magnitude
+
+                    if d<=12 then
+                        result[#result+1]=p
+                    end
+                end
+            end
+        end
+
+        return result
+    end
+
+    local function ThreatWindow()
+        local char=L.Character
+        if not char then return end
+
+        for _,p in ipairs(AttackersNow())do
+            local pc=p.Character
+            local h=Hum(pc)
+            local anim=h and h:FindFirstChildOfClass("Animator")
+
+            if anim then
+                for _,track in ipairs(anim:GetPlayingAnimationTracks())do
+                    local a=track.Animation
+
+                    if a then
+                        local n=string.lower(a.Name or "")
+
+                        if string.find(n,"punch",1,true)
+                            or string.find(n,"attack",1,true)
+                            or string.find(n,"m1",1,true)
+                        then
+                            return p
+                        end
+                    end
+                end
+            end
+        end
+
+        return nil
+    end
+
+    local function PulseCounter()
+        pcall(function()
+            local vu=game:GetService("VirtualUser")
+            vu:CaptureController()
+            vu:ClickButton2(Vector2.new())
+        end)
+
+        task.wait(COUNTER_WINDOW)
+
+        pcall(function()
+            VIM:SendMouseButtonEvent(
+                0,0,2,false,game,0
+            )
+        end)
+    end
+
+    R.Heartbeat:Connect(function()
+        if not S.AutoCounter then
+            return
+        end
+
+        local att=ThreatWindow()
+        if not att then
+            return
+        end
+
+        if lastCounter[att]
+            and tick()-lastCounter[att]<COUNTER_COOLDOWN
+        then
+            return
+        end
+
+        lastCounter[att]=tick()
+
+        task.spawn(function()
+            PulseCounter()
+        end)
+    end)
+end
+
+--// HIGURUMA / DEFENSE ATTORNEY QTE FRAMEWORK
+--// One system only. Final Judgement's exact W/A/S/D competitive
+--// implementation is intentionally not guessed here.
+
+do
+    local QTE_GUI_KEYWORDS={
+        "higuruma",
+        "trial",
+        "qte",
+        "judgement",
+        "judgment",
+        "sentencing",
+        "court",
+        "finaljudgement",
+        "finaljudgment"
+    }
+
+    local QTE_BUTTON_KEYS={
+        "guilty",
+        "innocent",
+        "notguilty",
+        "yes",
+        "no",
+        "confirm",
+        "answer",
+        "w",
+        "a",
+        "s",
+        "d"
+    }
+
+    local solvedTimestamps={}
+
+    local function FindQTE(root)
+        if not root then return end
+
+        for _,g in ipairs(root:GetDescendants())do
+            if g:IsA("ScreenGui") and g.Enabled then
+                local n=string.lower(g.Name)
+
+                for _,k in ipairs(QTE_GUI_KEYWORDS)do
+                    if string.find(n,k,1,true)then
+                        return g
+                    end
+                end
+            end
+        end
+    end
+
+    local function PickButton(gui)
+        local candidates={}
+
+        for _,d in ipairs(gui:GetDescendants())do
+            if d:IsA("GuiButton") and d.Visible then
+                local txt=""
+
+                if d:IsA("TextButton")then
+                    txt=string.lower(d.Text or "")
+                end
+
+                local n=string.lower(d.Name)
+
+                for _,k in ipairs(QTE_BUTTON_KEYS)do
+                    if string.find(n,k,1,true)
+                        or string.find(txt,k,1,true)
+                    then
+                        candidates[#candidates+1]=d
+                        break
+                    end
+                end
+            end
+        end
+
+        if #candidates>0 then
+            return candidates[1]
+        end
+
+        for _,d in ipairs(gui:GetDescendants())do
+            if d:IsA("GuiButton")and d.Visible then
+                return d
+            end
+        end
+    end
+
+    local function ClickQTEButton(b)
+        if not b then return end
+
+        pcall(function()
+            if b:IsA("GuiButton")then
+                b:Activate()
+            end
+        end)
+
+        local vim=game:GetService("VirtualInputManager")
+
+        if vim and b.AbsolutePosition then
+            local pos=
+                b.AbsolutePosition+
+                b.AbsoluteSize/2
+
+            pcall(function()
+                vim:SendMouseButtonEvent(
+                    pos.X,
+                    pos.Y,
+                    0,
+                    true,
+                    game,
+                    0
+                )
+
+                task.wait(.02)
+
+                vim:SendMouseButtonEvent(
+                    pos.X,
+                    pos.Y,
+                    0,
+                    false,
+                    game,
+                    0
+                )
+            end)
+        end
+    end
+
+    task.spawn(function()
+        while G.Parent do
+            task.wait(.05)
+
+            if S.HigurumaQTE then
+                local pg=L:FindFirstChild("PlayerGui")
+                local gui=FindQTE(pg)
+
+                if gui then
+                    if not solvedTimestamps[gui]
+                        or tick()-solvedTimestamps[gui]>.5
+                    then
+                        local b=PickButton(gui)
+
+                        if b then
+                            solvedTimestamps[gui]=tick()
+                            ClickQTEButton(b)
+                        end
+                    end
+                end
+            end
+        end
+    end)
+
+    -- Remote-name awareness without creating a second QTE system.
+    pcall(function()
+        if hookmetamethod and newcclosure and getnamecallmethod then
+            local OldNamecall
+
+            OldNamecall=hookmetamethod(
+                game,
+                "__namecall",
+                newcclosure(function(self,...)
+                    local method=getnamecallmethod()
+
+                    if S.HigurumaQTE
+                        and method=="FireServer"
+                        and typeof(self)=="Instance"
+                        and self:IsA("RemoteEvent")
+                    then
+                        local n=string.lower(self.Name)
+
+                        for _,k in ipairs(QTE_GUI_KEYWORDS)do
+                            if string.find(n,k,1,true)then
+                                break
+                            end
+                        end
+                    end
+
+                    return OldNamecall(self,...)
+                end)
+            )
+        end
+    end)
+end
+
+--// PLAYER REMOVAL
+P.PlayerRemoving:Connect(function(p)
+    if p==KillTarget then
+        KillTarget=nil
+        S.KillActive=false
+        RefreshKill()
+    end
+
+    if p==LockTarget then
+        LockTarget=nil
+        S.LockOnEnabled=false
+        RefreshLock()
+    end
+
+    if p==LastTarget then
+        LastTarget=nil
+        StopAutoBlackFlash()
+    end
+
+    if p==AutoBlackFlashTarget then
+        StopAutoBlackFlash()
+    end
+end)
+
+--// PLAYER ESP
+local ESP=Instance.new("Folder",G)
+ESP.Name="AlastxrOnTop_ESP"
+
+local PE={}
+
+local function HidePE(d)
+    if d then
+        for _,x in ipairs({
+            "Box",
+            "Name",
+            "Health",
+            "Tracer"
+        })do
+            if d[x]then
+                d[x].Visible=false
+            end
+        end
+    end
+end
+
+local function RemovePE(p)
+    local d=PE[p]
+
+    if d then
+        for _,v in pairs(d)do
+            if typeof(v)=="Instance"
+                and v.Parent
+            then
+                v:Destroy()
+            end
+        end
+
+        PE[p]=nil
+    end
+end
+
+local function MakePE(p)
+    if p==L then return end
+
+    RemovePE(p)
+
+    local d={}
+    PE[p]=d
+
+    local f=Instance.new("Folder",ESP)
+    f.Name=p.Name
+    d.Holder=f
+
+    local b=Instance.new("Frame",f)
+    b.BackgroundTransparency=1
+    b.BorderSizePixel=0
+    b.Visible=false
+    d.Box=b
+
+    local bs=Instance.new("UIStroke",b)
+    bs.Thickness=S.PlayerBoxThickness
+    bs.Color=S.PlayerBoxColor
+    d.BoxStroke=bs
+
+    local n=Instance.new("TextLabel",f)
+    n.BackgroundTransparency=1
+    n.Visible=false
+    n.Font=Enum.Font.GothamBold
+    n.TextColor3=Color3.new(1,1,1)
+    n.TextStrokeTransparency=0
+    n.TextStrokeColor3=Color3.new()
+    n.TextSize=S.PlayerNameSize
+    n.TextXAlignment=Enum.TextXAlignment.Center
+    d.Name=n
+
+    local h=Instance.new("TextLabel",f)
+    h.BackgroundTransparency=1
+    h.Visible=false
+    h.Font=Enum.Font.GothamBold
+    h.TextColor3=Color3.new(1,1,1)
+    h.TextStrokeTransparency=0
+    h.TextStrokeColor3=Color3.new()
+    h.TextSize=S.PlayerHealthSize
+    h.TextXAlignment=Enum.TextXAlignment.Left
+    d.Health=h
+
+    local t=Instance.new("Frame",f)
+    t.BorderSizePixel=0
+    t.AnchorPoint=Vector2.new(.5,.5)
+    t.BackgroundColor3=Color3.new(1,1,1)
+    t.Visible=false
+    d.Tracer=t
+
+    return d
+end
+
+local function UpdatePE(p,d)
+    if not p.Character then
+        HidePE(d)
+        return
+    end
+
+    local hum,root=
+        Hum(p.Character),
+        Root(p.Character)
+
+    if not hum or not root or hum.Health<=0 then
+        HidePE(d)
+        return
+    end
+
+    local cam=W.CurrentCamera
+
+    if not cam then
+        HidePE(d)
+        return
+    end
+
+    local cf=root.CFrame
+
+    local hw,hh,hd=
+        2.25,
+        3.75,
+        1.25
+
+    local os={
+        Vector3.new(hw,hh,hd),
+        Vector3.new(-hw,hh,hd),
+        Vector3.new(hw,-hh,hd),
+        Vector3.new(-hw,-hh,hd),
+        Vector3.new(hw,hh,-hd),
+        Vector3.new(-hw,hh,-hd),
+        Vector3.new(hw,-hh,-hd),
+        Vector3.new(-hw,-hh,-hd)
+    }
+
+    local minX,minY=
+        math.huge,
+        math.huge
+
+    local maxX,maxY=
+        -math.huge,
+        -math.huge
+
+    for _,o in ipairs(os)do
+        local q=cam:WorldToViewportPoint(
+            cf:PointToWorldSpace(o)
+        )
+
+        if q.Z<=1 then
+            HidePE(d)
+            return
+        end
+
+        minX=math.min(minX,q.X)
+        minY=math.min(minY,q.Y)
+        maxX=math.max(maxX,q.X)
+        maxY=math.max(maxY,q.Y)
+    end
+
+    local screen=cam.ViewportSize
+
+    local rw,rh=
+        maxX-minX,
+        maxY-minY
+
+    if rw<=2
+        or rh<=2
+        or rw>screen.X*.75
+        or rh>screen.Y*.85
+    then
+        HidePE(d)
+        return
+    end
+
+    local w,h=
+        math.clamp(
+            rw*S.PlayerBoxSize,
+            2,
+            500
+        ),
+        math.clamp(
+            rh*S.PlayerBoxSize,
+            2,
+            700
+        )
+
+    local x,y=
+        (minX+maxX)*.5,
+        (minY+maxY)*.5
+
+    if x~=x or y~=y then
+        HidePE(d)
+        return
+    end
+
+    d.Box.Position=
+        UDim2.fromOffset(
+            x-w/2,
+            y-h/2
+        )
+
+    d.Box.Size=
+        UDim2.fromOffset(w,h)
+
+    d.Box.Visible=S.PlayerBoxes
+
+    d.BoxStroke.Thickness=
+        S.PlayerBoxThickness
+
+    d.BoxStroke.Color=
+        S.PlayerBoxColor
+
+    d.Name.Position=
+        UDim2.fromOffset(
+            x-w/2,
+            y-h/2-S.PlayerNameSize-3
+        )
+
+    d.Name.Size=
+        UDim2.fromOffset(
+            w,
+            S.PlayerNameSize+4
+        )
+
+    d.Name.Text=
+        p.DisplayName..
+        (
+            p.DisplayName~=p.Name
+            and " ["..p.Name.."]"
+            or ""
+        )
+
+    d.Name.TextSize=S.PlayerNameSize
+    d.Name.Visible=S.PlayerNames
+
+    d.Health.Position=
+        UDim2.fromOffset(
+            x+w/2+5,
+            y-h/2
+        )
+
+    d.Health.Size=
+        UDim2.fromOffset(
+            100,
+            S.PlayerHealthSize+5
+        )
+
+    d.Health.Text=
+        math.floor(math.max(0,hum.Health))..
+        "/"..
+        math.floor(hum.MaxHealth)
+
+    d.Health.TextSize=S.PlayerHealthSize
+    d.Health.Visible=S.PlayerHealth
+
+    if S.PlayerTracers then
+        local st=
+            Vector2.new(
+                screen.X/2,
+                screen.Y
+            )
+
+        local fn=
+            Vector2.new(
+                x,
+                y+h/2
+            )
+
+        local de=fn-st
+        local len=de.Magnitude
+
+        if len>0 and len<screen.Magnitude*2 then
+            d.Tracer.Position=
+                UDim2.fromOffset(
+                    (st.X+fn.X)/2,
+                    (st.Y+fn.Y)/2
+                )
+
+            d.Tracer.Size=
+                UDim2.fromOffset(
+                    len,
+                    S.PlayerTracerThickness
+                )
+
+            d.Tracer.Rotation=
+                math.deg(
+                    math.atan2(
+                        de.Y,
+                        de.X
+                    )
+                )
+
+            d.Tracer.Visible=true
+        else
+            d.Tracer.Visible=false
+        end
+    else
+        d.Tracer.Visible=false
+    end
+end
+
+local function HookPlayer(p)
+    if p==L then return end
+
+    MakePE(p)
+
+    p.CharacterAdded:Connect(function()
+        task.wait(.15)
+
+        if p.Parent then
+            MakePE(p)
+        end
+    end)
+end
+
+for _,p in ipairs(P:GetPlayers())do
+    HookPlayer(p)
+end
+
+P.PlayerAdded:Connect(HookPlayer)
+P.PlayerRemoving:Connect(RemovePE)
+
+R.RenderStepped:Connect(function()
+    for p,d in pairs(PE)do
+        if p.Parent then
+            pcall(UpdatePE,p,d)
+        else
+            RemovePE(p)
+        end
+    end
+end)
+
+--// ITEM ESP
+local IEFolder=Instance.new("Folder",ESP)
+IEFolder.Name="ItemESP"
+
+local IE={}
+
+local function AllowedItem(o)
+    return o and Allowed[o.Name]
+end
+
+local function CharPart(o)
+    if not o then return false end
+
+    for _,p in ipairs(P:GetPlayers())do
+        if p.Character and o:IsDescendantOf(p.Character)then
+            return true
+        end
+    end
+
+    return false
+end
+
+local function ResolveESPItem(o)
+    if not o or CharPart(o)then
+        return
+    end
+
+    local x=o
+
+    while x and x~=W do
+        if(
+            (x:IsA("Model")or x:IsA("Tool"))
+            and Allowed[x.Name]
+            and ItemRoot(x)
+            and not CharPart(x)
+        )then
+            return x
+        end
+
+        x=x.Parent
+    end
+
+    if o:IsA("BasePart")
+        and Allowed[o.Name]
+    then
+        return o
+    end
+end
+
+local function Candidate(o)
+    if not o then return end
+    return ResolveESPItem(o)
+end
+
+local function RemoveIE(o)
+    local d=IE[o]
+
+    if d then
+        for _,v in pairs(d)do
+            if typeof(v)=="Instance"
+                and v.Parent
+            then
+                v:Destroy()
+            end
+        end
+
+        IE[o]=nil
+    end
+end
+
+local function HideIE(d)
+    if d then
+        for _,x in ipairs({
+            "Box",
+            "Name",
+            "Tracer"
+        })do
+            if d[x]then
+                d[x].Visible=false
+            end
+        end
+    end
+end
+
+local function MakeIE(o)
+    o=Candidate(o)
+
+    if not o or IE[o]then
+        return
+    end
+
+    local root=ItemRoot(o)
+    if not root then return end
+
+    local d={}
+    IE[o]=d
+
+    local f=Instance.new("Folder",IEFolder)
+    f.Name="Item_"..o.Name
+    d.Holder=f
+
+    local b=Instance.new("Frame",f)
+    b.BackgroundTransparency=1
+    b.BorderSizePixel=0
+    b.Visible=false
+    b.ZIndex=5
+    d.Box=b
+
+    local s=Instance.new("UIStroke",b)
+    s.Thickness=S.ItemBoxThickness
+    s.Color=S.ItemBoxColor
+    d.BoxStroke=s
+
+    local n=Instance.new("TextLabel",f)
+    n.BackgroundTransparency=1
+    n.Visible=false
+    n.Font=Enum.Font.GothamBold
+    n.TextColor3=Color3.new(1,1,1)
+    n.TextStrokeTransparency=0
+    n.TextStrokeColor3=Color3.new()
+    n.TextSize=S.ItemNameSize
+    n.TextXAlignment=Enum.TextXAlignment.Center
+    n.ZIndex=6
+    d.Name=n
+
+    local t=Instance.new("Frame",f)
+    t.BorderSizePixel=0
+    t.AnchorPoint=Vector2.new(.5,.5)
+    t.BackgroundColor3=Color3.new(1,1,1)
+    t.Visible=false
+    t.ZIndex=5
+    d.Tracer=t
+
+    return d
+end
+
+local function UpdateIE(o,d)
+    if not o or not o.Parent then
+        RemoveIE(o)
+        return
+    end
+
+    local resolved=Candidate(o)
+
+    if resolved~=o then
+        HideIE(d)
+
+        if resolved and not IE[resolved]then
+            MakeIE(resolved)
+        end
+
+        return
+    end
+
+    if not resolved then
+        HideIE(d)
+        return
+    end
+
+    local root=ItemRoot(o)
+
+    if not root then
+        HideIE(d)
+        return
+    end
+
+    local cam=W.CurrentCamera
+
+    if not cam then
+        HideIE(d)
+        return
+    end
+
+    local cf,size
+
+    local ok=pcall(function()
+        if o:IsA("Model")then
+            cf,size=o:GetBoundingBox()
+        else
+            cf,size=root.CFrame,root.Size
+        end
+    end)
+
+    if not ok or not cf or not size then
+        HideIE(d)
+        return
+    end
+
+    local h=size*.5
+
+    local os={
+        Vector3.new(h.X,h.Y,h.Z),
+        Vector3.new(-h.X,h.Y,h.Z),
+        Vector3.new(h.X,-h.Y,h.Z),
+        Vector3.new(-h.X,-h.Y,h.Z),
+        Vector3.new(h.X,h.Y,-h.Z),
+        Vector3.new(-h.X,h.Y,-h.Z),
+        Vector3.new(h.X,-h.Y,-h.Z),
+        Vector3.new(-h.X,-h.Y,-h.Z)
+    }
+
+    local minX,minY=
+        math.huge,
+        math.huge
+
+    local maxX,maxY=
+        -math.huge,
+        -math.huge
+
+    for _,v in ipairs(os)do
+        local q=cam:WorldToViewportPoint(
+            cf:PointToWorldSpace(v)
+        )
+
+        if q.Z<=.5 then
+            HideIE(d)
+            return
+        end
+
+        minX=math.min(minX,q.X)
+        minY=math.min(minY,q.Y)
+        maxX=math.max(maxX,q.X)
+        maxY=math.max(maxY,q.Y)
+    end
+
+    local screen=cam.ViewportSize
+
+    local rw,rh=
+        maxX-minX,
+        maxY-minY
+
+    if rw<=1
+        or rh<=1
+        or rw>screen.X*.85
+        or rh>screen.Y*.85
+    then
+        HideIE(d)
+        return
+    end
+
+    local w=math.clamp(
+        rw*S.ItemBoxSize,
+        2,
+        screen.X*.85
+    )
+
+    local ht=math.clamp(
+        rh*S.ItemBoxSize,
+        2,
+        screen.Y*.85
+    )
+
+    local x,y=
+        (minX+maxX)*.5,
+        (minY+maxY)*.5
+
+    if x~=x or y~=y then
+        HideIE(d)
+        return
+    end
+
+    d.Box.Position=
+        UDim2.fromOffset(
+            x-w/2,
+            y-ht/2
+        )
+
+    d.Box.Size=
+        UDim2.fromOffset(w,ht)
+
+    d.Box.Visible=S.ItemBoxes
+
+    d.BoxStroke.Thickness=
+        S.ItemBoxThickness
+
+    d.BoxStroke.Color=
+        S.ItemBoxColor
+
+    d.Name.Position=
+        UDim2.fromOffset(
+            x-w/2,
+            y-ht/2-S.ItemNameSize-3
+        )
+
+    d.Name.Size=
+        UDim2.fromOffset(
+            w,
+            S.ItemNameSize+5
+        )
+
+    d.Name.Text=o.Name
+    d.Name.TextSize=S.ItemNameSize
+    d.Name.Visible=S.ItemNames
+
+    if S.ItemTracers then
+        local st=
+            Vector2.new(
+                screen.X/2,
+                screen.Y
+            )
+
+        local fn=
+            Vector2.new(
+                x,
+                y+ht/2
+            )
+
+        local de=fn-st
+        local len=de.Magnitude
+
+        if len>0 and len<screen.Magnitude*2 then
+            d.Tracer.Position=
+                UDim2.fromOffset(
+                    (st.X+fn.X)/2,
+                    (st.Y+fn.Y)/2
+                )
+
+            d.Tracer.Size=
+                UDim2.fromOffset(
+                    len,
+                    S.ItemTracerThickness
+                )
+
+            d.Tracer.Rotation=
+                math.deg(
+                    math.atan2(
+                        de.Y,
+                        de.X
+                    )
+                )
+
+            d.Tracer.Visible=true
+        else
+            d.Tracer.Visible=false
+        end
+    else
+        d.Tracer.Visible=false
+    end
+end
+
+local function ScanItems()
+    local found={}
+
+    for _,o in ipairs(W:GetDescendants())do
+        local item=Candidate(o)
+
+        if item then
+            found[item]=true
+
+            if not IE[item]then
+                MakeIE(item)
+            end
+        end
+    end
+
+    for o in pairs(IE)do
+        if not found[o]
+            or not o.Parent
+            or not Candidate(o)
+        then
+            RemoveIE(o)
+        end
+    end
+end
+
+ScanItems()
+
+W.DescendantAdded:Connect(function(o)
+    task.defer(function()
+        if not o.Parent then
+            return
+        end
+
+        local item=Candidate(o)
+
+        if item and not IE[item]then
+            MakeIE(item)
+        end
+    end)
+end)
+
+W.DescendantRemoving:Connect(function(o)
+    if IE[o]then
+        RemoveIE(o)
+    end
+end)
+
+task.spawn(function()
+    while G.Parent do
+        task.wait(2)
+
+        if G.Parent then
+            ScanItems()
+        end
+    end
+end)
+
+R.RenderStepped:Connect(function()
+    for o,d in pairs(IE)do
+        if o and o.Parent then
+            pcall(UpdateIE,o,d)
+        else
+            RemoveIE(o)
+        end
+    end
+end)
+
+--// HITBOX
+local HitboxOriginalSize=setmetatable({},{__mode="k"})
+
+local function GetHitboxHRP(p)
+    local c=p and p.Character
+    return c and c:FindFirstChild("HumanoidRootPart")
+end
+
+local function ApplyHitbox(hrp)
+    if not hrp then return end
+
+    if not HitboxOriginalSize[hrp]then
+        HitboxOriginalSize[hrp]=hrp.Size
+    end
+
+    local size=Vector3.new(
+        S.HitboxSize,
+        S.HitboxSize,
+        S.HitboxSize
+    )
+
+    if hrp.Size~=size then
+        pcall(function()
+            hrp.Size=size
+        end)
+    end
+end
+
+local function RestoreHitbox(hrp)
+    local old=HitboxOriginalSize[hrp]
+
+    if old then
+        pcall(function()
+            if hrp.Parent then
+                hrp.Size=old
+            end
+        end)
+
+        HitboxOriginalSize[hrp]=nil
+    end
+end
+
+R.Heartbeat:Connect(function()
+    for _,p in ipairs(P:GetPlayers())do
+        if p~=L then
+            local hrp=GetHitboxHRP(p)
+
+            if hrp then
+                if S.HitboxExpander then
+                    ApplyHitbox(hrp)
+                else
+                    RestoreHitbox(hrp)
+                end
+            end
+        end
+    end
+
+    for hrp in pairs(HitboxOriginalSize)do
+        if not hrp.Parent then
+            HitboxOriginalSize[hrp]=nil
+        end
+    end
+end)
+
+P.PlayerRemoving:Connect(function(p)
+    local hrp=GetHitboxHRP(p)
+
+    if hrp then
+        RestoreHitbox(hrp)
+    end
+end)
+
+--// FINAL
+Reg(M,"Main")
+Reg(ms,"Stroke")
+Reg(Top,"Top")
+Reg(Title,"Text")
+Reg(Min,"Text")
+Reg(Close,"Text")
+Reg(Side,"Side")
+Reg(Content,"Content")
+
+Theme()
+
+RefreshLock()
+RefreshLockMaster()
+RefreshLockDropdown()
+
+RefreshFlight()
+RefreshFlightMaster()
+
+RefreshBlack()
+RefreshBlackMaster()
+
+RefreshKill()
+RefreshKillMaster()
+
+RefreshTheme()
+
+White(G)
+
+M.Visible=true
+Body.Visible=true
+M.Size=FullSize
+
+print("[AlastxrOnTop] UI loaded.")
